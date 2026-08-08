@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Scan, 
-  Cpu, 
-  Sparkles, 
-  DollarSign, 
-  Clock, 
-  AlertCircle, 
-  CheckCircle2, 
-  Layers, 
-  ShieldCheck, 
-  BarChart3, 
-  Upload, 
-  Camera, 
+import {
+  Scan,
+  Cpu,
+  Sparkles,
+  DollarSign,
+  Clock,
+  AlertCircle,
+  CheckCircle2,
+  Layers,
+  ShieldCheck,
+  BarChart3,
+  Upload,
+  Camera,
   TrendingDown,
   Sun,
   Moon,
@@ -20,7 +20,7 @@ import {
   Aperture
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = `http://${window.location.hostname}:5000/api`;
 
 function App() {
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
@@ -34,9 +34,10 @@ function App() {
   const [result, setResult] = useState(null);
   const [backendOnline, setBackendOnline] = useState(true);
 
-  // Webcam Camera Modal State
+  // Webcam Camera Modal State for Desktop Webcams
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
+  const [cameraError, setCameraError] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -50,7 +51,7 @@ function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Check Flask Backend Status
+  // Fetch Samples & Check Flask Backend Health
   useEffect(() => {
     fetch(`${API_BASE}/health`)
       .then(res => res.json())
@@ -75,44 +76,53 @@ function App() {
       });
   }, []);
 
-  // Open Webcam Modal & Start Video Stream
+  // Desktop Webcam Stream Launcher
   const openCameraModal = async () => {
     setIsCameraModalOpen(true);
+    setCameraError(null);
+    let stream = null;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' }
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: 'environment' } }
       });
+    } catch (e1) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      } catch (e2) {
+        console.error("Camera access failed:", e2);
+        setCameraError("Browser blocked live video stream over HTTP. Use 'Snap Live Photo' button to open your phone's camera directly!");
+        return;
+      }
+    }
+
+    if (stream) {
       setCameraStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch (err) {
-      console.error("Webcam Access Error:", err);
-      alert("Could not access camera. Please allow camera permissions in your browser.");
-      setIsCameraModalOpen(false);
     }
   };
 
-  // Stop Webcam Stream
   const closeCameraModal = () => {
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
     }
     setIsCameraModalOpen(false);
+    setCameraError(null);
   };
 
-  // Capture Frame from Webcam Stream
   const captureWebcamPhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
-      
+
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
+
       canvas.toBlob((blob) => {
         if (blob) {
           const capturedFile = new File([blob], "camera_snapshot.jpg", { type: "image/jpeg" });
@@ -156,6 +166,17 @@ function App() {
       });
   };
 
+  // Direct Mobile Camera Capture Handler (Uses native smartphone camera app)
+  const handleMobileCameraCapture = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setSampleName(null);
+      setPreviewUrl(URL.createObjectURL(file));
+      handleEvaluate(file, null, basePrice);
+    }
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -187,7 +208,6 @@ function App() {
     return '50%';
   };
 
-  // Helper to format clean display titles for preset sample buttons
   const getSampleDisplayInfo = (filename, index) => {
     const fn = filename.toLowerCase();
     if (fn.includes('unripe') || fn.includes('green') || index === 1) {
@@ -201,10 +221,9 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* Hidden Canvas for Webcam Capture */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* WEBCAM CAMERA MODAL OVERLAY */}
+      {/* WEBCAM CAMERA MODAL OVERLAY (FOR DESKTOP) */}
       {isCameraModalOpen && (
         <div style={{
           position: 'fixed',
@@ -234,80 +253,34 @@ function App() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--amber-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Aperture size={20} /> Live Camera Viewfinder
+                <Aperture size={20} /> Live Camera Scanner
               </h3>
-              <button 
-                onClick={closeCameraModal} 
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
+              <button onClick={closeCameraModal} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
 
-            {/* Video Feed Frame */}
-            <div style={{
-              position: 'relative',
-              width: '100%',
-              maxHeight: '400px',
-              backgroundColor: '#000',
-              borderRadius: '0.85rem',
-              overflow: 'hidden',
-              marginBottom: '1.25rem',
-              border: '1px solid var(--border-subtle)'
-            }}>
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                style={{ width: '100%', height: '100%', maxHeight: '400px', objectFit: 'cover' }}
-              />
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '200px',
-                height: '200px',
-                border: '2px dashed rgba(245, 158, 11, 0.6)',
-                borderRadius: '50%',
-                pointerEvents: 'none'
-              }} />
-            </div>
+            {cameraError ? (
+              <div style={{ padding: '2rem 1rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '0.85rem', marginBottom: '1.25rem' }}>
+                <AlertCircle size={32} color="var(--rose-primary)" style={{ margin: '0 auto 0.75rem' }} />
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.5rem' }}>{cameraError}</p>
+              </div>
+            ) : (
+              <div style={{ position: 'relative', width: '100%', maxHeight: '400px', backgroundColor: '#000', borderRadius: '0.85rem', overflow: 'hidden', marginBottom: '1.25rem', border: '1px solid var(--border-subtle)' }}>
+                <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', maxHeight: '400px', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '200px', height: '200px', border: '2px dashed rgba(245, 158, 11, 0.6)', borderRadius: '50%', pointerEvents: 'none' }} />
+              </div>
+            )}
 
-            {/* Shutter Action Buttons */}
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-              <button 
-                onClick={closeCameraModal}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid var(--border-subtle)',
-                  color: 'var(--text-main)',
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
+              <button onClick={closeCameraModal} style={{ background: 'rgba(255, 255, 255, 0.1)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.75rem 1.5rem', borderRadius: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>
+                Close
               </button>
-              <button 
-                onClick={captureWebcamPhoto}
-                style={{
-                  background: 'linear-gradient(135deg, var(--amber-primary), #d97706)',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '0.75rem 2rem',
-                  borderRadius: '0.75rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  boxShadow: '0 4px 15px var(--amber-glow)'
-                }}
-              >
-                <Camera size={18} /> Capture & Scan Mango
-              </button>
+              {!cameraError && (
+                <button onClick={captureWebcamPhoto} style={{ background: 'linear-gradient(135deg, var(--amber-primary), #d97706)', color: '#fff', border: 'none', padding: '0.75rem 2rem', borderRadius: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 4px 15px var(--amber-glow)' }}>
+                  <Camera size={18} /> Capture & Scan Mango
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -338,24 +311,15 @@ function App() {
 
       {/* Navigation Tabs */}
       <div className="nav-tabs">
-        <button
-          className={`tab-btn ${activeTab === 'scanner' ? 'active' : ''}`}
-          onClick={() => setActiveTab('scanner')}
-        >
+        <button className={`tab-btn ${activeTab === 'scanner' ? 'active' : ''}`} onClick={() => setActiveTab('scanner')}>
           <Scan size={18} />
           <span>AI Scanner</span>
         </button>
-        <button
-          className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
-          onClick={() => setActiveTab('analytics')}
-        >
+        <button className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
           <BarChart3 size={18} />
           <span>CNN Metrics</span>
         </button>
-        <button
-          className={`tab-btn ${activeTab === 'rules' ? 'active' : ''}`}
-          onClick={() => setActiveTab('rules')}
-        >
+        <button className={`tab-btn ${activeTab === 'rules' ? 'active' : ''}`} onClick={() => setActiveTab('rules')}>
           <Layers size={18} />
           <span>Rules Matrix</span>
         </button>
@@ -375,7 +339,6 @@ function App() {
               </div>
             </div>
 
-            {/* Base Price Setting */}
             <div className="price-control-box">
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Market Base Price (Grade A)</div>
@@ -395,15 +358,21 @@ function App() {
               </div>
             </div>
 
-            {/* Action Buttons Grid: Open Webcam Viewfinder + Upload File */}
+            {/* Native Mobile Camera & Gallery Button Inputs */}
             <div className="action-buttons-grid">
-              {/* Trigger Live Webcam Viewfinder Modal */}
-              <button className="action-btn-camera" onClick={openCameraModal}>
+              <label className="action-btn-camera" htmlFor="mobile-camera-input">
                 <Camera size={18} />
                 <span>Snap Live Photo</span>
-              </button>
+                <input
+                  id="mobile-camera-input"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleMobileCameraCapture}
+                  style={{ display: 'none' }}
+                />
+              </label>
 
-              {/* Upload File Input */}
               <label className="action-btn-upload" htmlFor="mango-file-input">
                 <Upload size={18} />
                 <span>Browse Gallery</span>
@@ -417,7 +386,7 @@ function App() {
               </label>
             </div>
 
-            {/* Preset Samples Selector */}
+            {/* Dynamic Preset Samples Selector */}
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
                 Preset Demo Samples:
@@ -440,16 +409,13 @@ function App() {
                 ) : (
                   <>
                     <button className={`preset-pill ${sampleName === 'sample_ripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_ripe_mango.jpg')}>
-                      <span style={{ fontSize: '1.2rem' }}>🥭</span>
-                      <span>Grade A (Ripe)</span>
+                      <span>🥭</span><span>Grade A (Ripe)</span>
                     </button>
                     <button className={`preset-pill ${sampleName === 'sample_unripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_unripe_mango.jpg')}>
-                      <span style={{ fontSize: '1.2rem' }}>🍏</span>
-                      <span>Grade B (Unripe)</span>
+                      <span>🍏</span><span>Grade B (Unripe)</span>
                     </button>
                     <button className={`preset-pill ${sampleName === 'sample_overripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_overripe_mango.jpg')}>
-                      <span style={{ fontSize: '1.2rem' }}>🍂</span>
-                      <span>Grade C (Overripe)</span>
+                      <span>🍂</span><span>Grade C (Overripe)</span>
                     </button>
                   </>
                 )}
@@ -482,20 +448,9 @@ function App() {
               </div>
             ) : result ? (
               <div>
-                {/* Result Classification Banner */}
-                <div
-                  className={`result-banner ${
-                    result.prediction.class_code === 'Grade_A_Ripe'
-                      ? 'result-banner-grade-a'
-                      : result.prediction.class_code === 'Grade_B_Unripe'
-                      ? 'result-banner-grade-b'
-                      : 'result-banner-grade-c'
-                  }`}
-                >
+                <div className={`result-banner ${result.prediction.class_code === 'Grade_A_Ripe' ? 'result-banner-grade-a' : result.prediction.class_code === 'Grade_B_Unripe' ? 'result-banner-grade-b' : 'result-banner-grade-c'}`}>
                   <div>
-                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.8 }}>
-                      Quality Grade
-                    </div>
+                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.8 }}>Quality Grade</div>
                     <div className="result-banner-text">{result.prediction.display_name}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -504,7 +459,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Ripeness Spectrum Indicator Bar */}
                 <div className="spectrum-bar-wrap">
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
                     <span>Unripe Green</span>
@@ -516,7 +470,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Computer Vision HSV Features */}
                 <div style={{ marginBottom: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
                     <Sparkles size={15} color="var(--amber-primary)" />
@@ -527,26 +480,19 @@ function App() {
                   <div className="features-grid">
                     <div className="feature-box">
                       <div className="feature-label">Ripe Yellow %</div>
-                      <div className="feature-value" style={{ color: 'var(--amber-primary)' }}>
-                        {result.computer_vision_features.yellow_percentage}%
-                      </div>
+                      <div className="feature-value" style={{ color: 'var(--amber-primary)' }}>{result.computer_vision_features.yellow_percentage}%</div>
                     </div>
                     <div className="feature-box">
                       <div className="feature-label">Unripe Green %</div>
-                      <div className="feature-value" style={{ color: 'var(--emerald-primary)' }}>
-                        {result.computer_vision_features.green_percentage}%
-                      </div>
+                      <div className="feature-value" style={{ color: 'var(--emerald-primary)' }}>{result.computer_vision_features.green_percentage}%</div>
                     </div>
                     <div className="feature-box">
                       <div className="feature-label">Dark Spots %</div>
-                      <div className="feature-value" style={{ color: 'var(--rose-primary)' }}>
-                        {result.computer_vision_features.dark_spots_percentage}%
-                      </div>
+                      <div className="feature-value" style={{ color: 'var(--rose-primary)' }}>{result.computer_vision_features.dark_spots_percentage}%</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Rule-Based Pricing & Shelf Life Recommendation */}
                 <div style={{ background: 'rgba(0, 0, 0, 0.05)', border: '1px solid var(--border-subtle)', borderRadius: '0.85rem', padding: '1rem' }}>
                   <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--amber-primary)', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <ShieldCheck size={16} />
@@ -580,7 +526,6 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Vendor Strategy Text */}
                   <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem' }}>
                     <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--emerald-primary)', marginBottom: '0.2rem' }}>
                       Vendor Operational Strategy ({result.rule_engine.status_category}):
@@ -616,12 +561,12 @@ function App() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
             <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
               <div className="feature-label">Training Accuracy</div>
-              <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>100.00%</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Epoch 8 Performance</div>
+              <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>95.00%</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Epoch 15 Performance</div>
             </div>
             <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
               <div className="feature-label">Final Loss Value</div>
-              <div className="feature-value" style={{ color: 'var(--amber-primary)', fontSize: '1.75rem' }}>0.0007</div>
+              <div className="feature-value" style={{ color: 'var(--amber-primary)', fontSize: '1.75rem' }}>0.1600</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>CrossEntropyLoss</div>
             </div>
             <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
@@ -736,7 +681,7 @@ function App() {
       <footer className="ai-concepts-footer">
         <div className="concept-item">
           <h4>1. Deep Learning CNN</h4>
-          <p>3-block PyTorch Neural Network (`mango_model.pth`) trained to 100% accuracy for spatial feature classification.</p>
+          <p>3-block PyTorch Neural Network (`mango_model.pth`) trained for spatial feature classification.</p>
         </div>
         <div className="concept-item">
           <h4>2. Computer Vision (OpenCV)</h4>
