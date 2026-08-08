@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Datasets & Temp Cached Images
+dataset/
+*.png
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
