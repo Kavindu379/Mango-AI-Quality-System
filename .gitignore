@@ -9,6 +9,7 @@ ENV/
 # Datasets & Temp Cached Images
 dataset/
 *.png
+!test_images/*.png
 
 # Node / React
 frontend/node_modules/

@@ -16,6 +16,7 @@ app = Flask(__name__, static_folder='frontend/dist', static_url_path='')
 CORS(app)  # Enable Cross-Origin Resource Sharing for React Frontend
 
 MODEL_PATH = 'mango_model.pth'
+TEST_IMAGES_DIR = 'test_images'
 model = None
 
 def get_or_load_model():
@@ -40,6 +41,21 @@ def health_check():
         "classes": CLASS_NAMES
     })
 
+@app.route('/api/samples', methods=['GET'])
+def list_sample_images():
+    """Dynamically lists all image files inside the test_images folder."""
+    samples = []
+    if os.path.exists(TEST_IMAGES_DIR):
+        for fname in sorted(os.listdir(TEST_IMAGES_DIR)):
+            if fname.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                label = fname.replace('.jpg', '').replace('.jpeg', '').replace('.png', '').replace('_', ' ').title()
+                samples.append({
+                    "filename": fname,
+                    "label": label,
+                    "url": f"/api/samples/{fname}"
+                })
+    return jsonify({"samples": samples})
+
 @app.route('/api/predict', methods=['POST'])
 def predict_mango():
     m = get_or_load_model()
@@ -56,7 +72,7 @@ def predict_mango():
     # 2. Check if sample_name was passed
     elif 'sample_name' in request.form:
         sample_name = request.form.get('sample_name')
-        sample_path = os.path.join('test_images', sample_name)
+        sample_path = os.path.join(TEST_IMAGES_DIR, sample_name)
         if os.path.exists(sample_path):
             image = Image.open(sample_path).convert('RGB')
         else:
@@ -125,7 +141,7 @@ def predict_mango():
 
 @app.route('/api/samples/<filename>', methods=['GET'])
 def get_sample_image(filename):
-    return send_from_directory('test_images', filename)
+    return send_from_directory(TEST_IMAGES_DIR, filename)
 
 if __name__ == '__main__':
     get_or_load_model()

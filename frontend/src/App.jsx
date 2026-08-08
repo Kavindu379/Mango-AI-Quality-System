@@ -28,6 +28,7 @@ function App() {
   const [basePrice, setBasePrice] = useState(300);
   const [selectedFile, setSelectedFile] = useState(null);
   const [sampleName, setSampleName] = useState('sample_ripe_mango.jpg');
+  const [sampleList, setSampleList] = useState([]);
   const [previewUrl, setPreviewUrl] = useState(`${API_BASE}/samples/sample_ripe_mango.jpg`);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -56,7 +57,22 @@ function App() {
       .then(data => setBackendOnline(data.status === 'online'))
       .catch(() => setBackendOnline(false));
 
-    handleEvaluate(null, 'sample_ripe_mango.jpg', 300);
+    fetch(`${API_BASE}/samples`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.samples && data.samples.length > 0) {
+          setSampleList(data.samples);
+          setSampleName(data.samples[0].filename);
+          setPreviewUrl(`${API_BASE}/samples/${data.samples[0].filename}`);
+          handleEvaluate(null, data.samples[0].filename, 300);
+        } else {
+          handleEvaluate(null, 'sample_ripe_mango.jpg', 300);
+        }
+      })
+      .catch(err => {
+        console.error("Error fetching sample list:", err);
+        handleEvaluate(null, 'sample_ripe_mango.jpg', 300);
+      });
   }, []);
 
   // Open Webcam Modal & Start Video Stream
@@ -169,6 +185,18 @@ function App() {
     if (cls === 'Grade_A_Ripe') return '50%';
     if (cls === 'Grade_C_Overripe') return '85%';
     return '50%';
+  };
+
+  // Helper to format clean display titles for preset sample buttons
+  const getSampleDisplayInfo = (filename, index) => {
+    const fn = filename.toLowerCase();
+    if (fn.includes('unripe') || fn.includes('green') || index === 1) {
+      return { icon: '🍏', title: 'Grade B (Unripe)' };
+    }
+    if (fn.includes('overripe') || fn.includes('damaged') || fn.includes('spoiled') || index === 2) {
+      return { icon: '🍂', title: 'Grade C (Overripe)' };
+    }
+    return { icon: '🥭', title: 'Grade A (Ripe)' };
   };
 
   return (
@@ -395,27 +423,36 @@ function App() {
                 Preset Demo Samples:
               </label>
               <div className="preset-pills-grid">
-                <button
-                  className={`preset-pill ${sampleName === 'sample_ripe_mango.jpg' ? 'active' : ''}`}
-                  onClick={() => handleSelectSample('sample_ripe_mango.jpg')}
-                >
-                  <span style={{ fontSize: '1.2rem' }}>🥭</span>
-                  <span>Grade A (Ripe)</span>
-                </button>
-                <button
-                  className={`preset-pill ${sampleName === 'sample_unripe_mango.jpg' ? 'active' : ''}`}
-                  onClick={() => handleSelectSample('sample_unripe_mango.jpg')}
-                >
-                  <span style={{ fontSize: '1.2rem' }}>🍏</span>
-                  <span>Grade B (Unripe)</span>
-                </button>
-                <button
-                  className={`preset-pill ${sampleName === 'sample_overripe_mango.jpg' ? 'active' : ''}`}
-                  onClick={() => handleSelectSample('sample_overripe_mango.jpg')}
-                >
-                  <span style={{ fontSize: '1.2rem' }}>🍂</span>
-                  <span>Grade C (Overripe)</span>
-                </button>
+                {sampleList.length > 0 ? (
+                  sampleList.map((item, idx) => {
+                    const info = getSampleDisplayInfo(item.filename, idx);
+                    return (
+                      <button
+                        key={idx}
+                        className={`preset-pill ${sampleName === item.filename ? 'active' : ''}`}
+                        onClick={() => handleSelectSample(item.filename)}
+                      >
+                        <span style={{ fontSize: '1.2rem' }}>{info.icon}</span>
+                        <span>{info.title}</span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <>
+                    <button className={`preset-pill ${sampleName === 'sample_ripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_ripe_mango.jpg')}>
+                      <span style={{ fontSize: '1.2rem' }}>🥭</span>
+                      <span>Grade A (Ripe)</span>
+                    </button>
+                    <button className={`preset-pill ${sampleName === 'sample_unripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_unripe_mango.jpg')}>
+                      <span style={{ fontSize: '1.2rem' }}>🍏</span>
+                      <span>Grade B (Unripe)</span>
+                    </button>
+                    <button className={`preset-pill ${sampleName === 'sample_overripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_overripe_mango.jpg')}>
+                      <span style={{ fontSize: '1.2rem' }}>🍂</span>
+                      <span>Grade C (Overripe)</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
