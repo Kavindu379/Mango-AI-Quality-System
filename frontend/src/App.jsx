@@ -17,7 +17,8 @@ import {
   Moon,
   Smartphone,
   X,
-  Aperture
+  Aperture,
+  AlertTriangle
 } from 'lucide-react';
 
 const API_BASE = `http://${window.location.hostname}:5000/api`;
@@ -34,7 +35,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [backendOnline, setBackendOnline] = useState(true);
 
-  // Webcam Camera Modal State for Desktop Webcams
+  // Webcam Camera Modal State
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const [cameraError, setCameraError] = useState(null);
@@ -76,7 +77,6 @@ function App() {
       });
   }, []);
 
-  // Desktop Webcam Stream Launcher
   const openCameraModal = async () => {
     setIsCameraModalOpen(true);
     setCameraError(null);
@@ -166,7 +166,6 @@ function App() {
       });
   };
 
-  // Direct Mobile Camera Capture Handler (Uses native smartphone camera app)
   const handleMobileCameraCapture = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -358,7 +357,6 @@ function App() {
               </div>
             </div>
 
-            {/* Native Mobile Camera & Gallery Button Inputs */}
             <div className="action-buttons-grid">
               <label className="action-btn-camera" htmlFor="mobile-camera-input">
                 <Camera size={18} />
@@ -386,7 +384,6 @@ function App() {
               </label>
             </div>
 
-            {/* Dynamic Preset Samples Selector */}
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
                 Preset Demo Samples:
@@ -422,7 +419,6 @@ function App() {
               </div>
             </div>
 
-            {/* Image Preview Frame */}
             {previewUrl && (
               <div className="image-preview-frame">
                 <img src={previewUrl} alt="Target Mango" />
@@ -448,7 +444,35 @@ function App() {
               </div>
             ) : result ? (
               <div>
-                <div className={`result-banner ${result.prediction.class_code === 'Grade_A_Ripe' ? 'result-banner-grade-a' : result.prediction.class_code === 'Grade_B_Unripe' ? 'result-banner-grade-b' : 'result-banner-grade-c'}`}>
+                {/* INVALID OBJECT WARNING BANNER */}
+                {(!result.is_valid_mango || result.prediction.class_code === 'Non_Mango') && (
+                  <div style={{
+                    padding: '1rem 1.25rem',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid var(--rose-primary)',
+                    borderRadius: '0.85rem',
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.85rem'
+                  }}>
+                    <AlertTriangle size={26} color="var(--rose-primary)" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+                    <div>
+                      <h4 style={{ color: 'var(--rose-primary)', fontWeight: 800, fontSize: '0.95rem', marginBottom: '0.2rem' }}>
+                        Invalid Object Detected 🚫
+                      </h4>
+                      <p style={{ color: 'var(--text-main)', fontSize: '0.85rem', lineHeight: 1.4 }}>
+                        The uploaded image does not match Mango visual characteristics or color features. Please scan a valid Mango (Ripe, Unripe, or Overripe).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className={`result-banner ${result.prediction.class_code === 'Grade_A_Ripe' ? 'result-banner-grade-a' :
+                    result.prediction.class_code === 'Grade_B_Unripe' ? 'result-banner-grade-b' :
+                      result.prediction.class_code === 'Grade_C_Overripe' ? 'result-banner-grade-c' :
+                        'result-banner-grade-c'
+                  }`}>
                   <div>
                     <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.8 }}>Quality Grade</div>
                     <div className="result-banner-text">{result.prediction.display_name}</div>
@@ -459,16 +483,18 @@ function App() {
                   </div>
                 </div>
 
-                <div className="spectrum-bar-wrap">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                    <span>Unripe Green</span>
-                    <span>Optimal Ripe</span>
-                    <span>Overripe Damaged</span>
+                {result.is_valid_mango && result.prediction.class_code !== 'Non_Mango' && (
+                  <div className="spectrum-bar-wrap">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                      <span>Unripe Green</span>
+                      <span>Optimal Ripe</span>
+                      <span>Overripe Damaged</span>
+                    </div>
+                    <div className="spectrum-gradient">
+                      <div className="spectrum-marker" style={{ left: getSpectrumMarkerPosition() }} />
+                    </div>
                   </div>
-                  <div className="spectrum-gradient">
-                    <div className="spectrum-marker" style={{ left: getSpectrumMarkerPosition() }} />
-                  </div>
-                </div>
+                )}
 
                 <div style={{ marginBottom: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
@@ -561,7 +587,7 @@ function App() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
             <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
               <div className="feature-label">Training Accuracy</div>
-              <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>95.00%</div>
+              <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>95.50%</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Epoch 15 Performance</div>
             </div>
             <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
@@ -577,7 +603,7 @@ function App() {
           </div>
 
           <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
-            CNN Layer Specs (`MangoCNN`)
+            Neural Network Specs (`MobileNetV2 Transfer Learning`)
           </h3>
           <table className="pro-table">
             <thead>
@@ -596,28 +622,16 @@ function App() {
                 <td>Standardizes RGB resolution & normalizes pixels</td>
               </tr>
               <tr>
-                <td>Conv Block 1</td>
-                <td>Conv2D (32 filters) + BatchNorm + MaxPool</td>
-                <td>(B, 32, 112, 112)</td>
-                <td>Extracts edge and color boundaries</td>
-              </tr>
-              <tr>
-                <td>Conv Block 2</td>
-                <td>Conv2D (64 filters) + BatchNorm + MaxPool</td>
-                <td>(B, 64, 56, 56)</td>
-                <td>Extracts surface texture & decay spot patterns</td>
-              </tr>
-              <tr>
-                <td>Conv Block 3</td>
-                <td>Conv2D (128 filters) + BatchNorm + MaxPool</td>
-                <td>(B, 128, 28, 28)</td>
-                <td>Extracts complex ripeness visual patterns</td>
+                <td>Base Backbone</td>
+                <td>MobileNetV2 Features (ImageNet Pre-trained)</td>
+                <td>(B, 1280, 7, 7)</td>
+                <td>Depthwise Separable Convolutions & Inverted Residuals</td>
               </tr>
               <tr>
                 <td>Classifier Head</td>
-                <td>AdaptiveAvgPool + Linear(128) + Dropout(0.3) + Linear(3)</td>
-                <td>(B, 3)</td>
-                <td>Softmax probabilities across Grade A, B, and C</td>
+                <td>Dropout(0.3) + Linear(1280, 4)</td>
+                <td>(B, 4)</td>
+                <td>Softmax probabilities across Grade A, B, C, & Non_Mango</td>
               </tr>
             </tbody>
           </table>
@@ -672,6 +686,13 @@ function App() {
                 <td>1 Day</td>
                 <td>Immediate clearance discount or transfer to juice processing. Isolate stock.</td>
               </tr>
+              <tr>
+                <td style={{ fontWeight: 700, color: 'var(--rose-primary)' }}>Non_Mango</td>
+                <td>Invalid Object 🚫</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>⚠️ Non-Mango object detected. Do not process for fruit grading.</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -681,7 +702,7 @@ function App() {
       <footer className="ai-concepts-footer">
         <div className="concept-item">
           <h4>1. Deep Learning CNN</h4>
-          <p>3-block PyTorch Neural Network (`mango_model.pth`) trained for spatial feature classification.</p>
+          <p>4-class PyTorch Neural Network (`mango_model.pth`) for spatial feature classification and Out-of-Distribution detection.</p>
         </div>
         <div className="concept-item">
           <h4>2. Computer Vision (OpenCV)</h4>

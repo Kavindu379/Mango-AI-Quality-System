@@ -1,69 +1,59 @@
 def evaluate_mango_decision_rules(predicted_class, confidence_score, base_price_per_kg=300.0):
     """
-    Rule-Based Expert System: Takes the output of the Convolutional Neural Network
-    (Quality Grade & Confidence Score) and evaluates decision rules to provide:
-    1. Recommended Selling Price per kg
-    2. Estimated Shelf Life (Days)
-    3. Actionable Storage & Retail Advice
-    
-    Args:
-        predicted_class (str): 'Grade_A_Ripe', 'Grade_B_Unripe', or 'Grade_C_Overripe'
-        confidence_score (float): Model confidence score (0.0 to 1.0)
-        base_price_per_kg (float): Market benchmark price for Grade A per kg.
-        
-    Returns:
-        dict: Rule evaluation results containing price, shelf life, discount, and advice.
+    Rule-Based Expert Inference Engine for Mango Quality & Pricing.
+    Now handles 'Non_Mango' invalid object detection cleanly.
     """
-    confidence_pct = round(confidence_score * 100, 1)
-    
+    if predicted_class == 'Non_Mango':
+        return {
+            "status_category": "Invalid Object",
+            "is_valid_mango": False,
+            "recommended_price": 0.0,
+            "discount_percentage": 100,
+            "estimated_shelf_life": "N/A",
+            "vendor_recommendation": "⚠️ Non-Mango or Unknown Object Detected! Please scan a valid Ripe, Unripe, or Overripe Mango.",
+            "storage_guidance": "Do not process non-fruit items."
+        }
+        
     if predicted_class == 'Grade_A_Ripe':
-        price_factor = 1.0  # 100% full market price
-        estimated_shelf_life_days = "3 to 5 Days"
-        status_category = "Premium / Optimal Freshness"
-        recommendation = (
-            "Display at front counters. Ideal for immediate consumption. "
-            "Maintain cool, well-ventilated storage (15°C - 18°C)."
-        )
-        action_flag = "PRIMARY_SALE"
+        price_multiplier = 1.0
+        discount_pct = 0
+        shelf_life = "3 to 5 Days"
+        status_cat = "Premium Fresh"
+        recommendation = "Optimal quality for immediate sale. Place on front counter display. Store at 15°C–18°C."
+        storage = "Cool ambient environment (15°C–18°C). Avoid direct sunlight."
         
     elif predicted_class == 'Grade_B_Unripe':
-        price_factor = 0.90  # 90% of base price
-        estimated_shelf_life_days = "7 to 10 Days"
-        status_category = "Immature / Ripening Needed"
-        recommendation = (
-            "Store at ambient room temperature (22°C - 25°C) to allow natural ripening. "
-            "Re-grade in 3 days for potential Grade A price promotion."
-        )
-        action_flag = "HOLD_RIPENING"
+        price_multiplier = 0.90
+        discount_pct = 10
+        shelf_life = "7 to 10 Days"
+        status_cat = "Immature / Ripening Stock"
+        recommendation = "Hold stock for 3 to 4 days to allow natural ripening. Store at room temp (22°C–25°C)."
+        storage = "Room temperature storage (22°C–25°C). Keep well ventilated."
         
     elif predicted_class == 'Grade_C_Overripe':
-        price_factor = 0.50  # 50% clearance discount
-        estimated_shelf_life_days = "1 Day (Immediate clearance)"
-        status_category = "Overripe / Bruised / Defective"
-        recommendation = (
-            "Apply immediate 50% clearance discount or transfer to fruit processing (juices/puree). "
-            "Isolate from fresh inventory to prevent pest or mold cross-contamination."
-        )
-        action_flag = "CLEARANCE_DISCOUNT"
+        price_multiplier = 0.50
+        discount_pct = 50
+        shelf_life = "1 Day (Immediate Sale Needed)"
+        status_cat = "Clearance / Discount Required"
+        recommendation = "Apply 50% clearance discount for quick sale today or transfer to juice processing."
+        storage = "Isolate immediately from fresh stock to prevent mold transfer. Refrigerate at 10°C."
         
     else:
-        price_factor = 1.0
-        estimated_shelf_life_days = "Unknown"
-        status_category = "Unclassified"
-        recommendation = "Manual inspection recommended."
-        action_flag = "MANUAL_CHECK"
+        price_multiplier = 1.0
+        discount_pct = 0
+        shelf_life = "Unknown"
+        status_cat = "Uncertain"
+        recommendation = "Re-inspect fruit under better lighting."
+        storage = "Standard ambient storage."
 
-    recommended_price = round(base_price_per_kg * price_factor, 2)
-    discount_pct = round((1.0 - price_factor) * 100, 0)
+    recommended_price = round(base_price_per_kg * price_multiplier, 2)
 
     return {
-        "predicted_class": predicted_class,
-        "confidence_percentage": confidence_pct,
-        "status_category": status_category,
-        "base_price": base_price_per_kg,
+        "status_category": status_cat,
+        "is_valid_mango": True,
         "recommended_price": recommended_price,
         "discount_percentage": discount_pct,
-        "estimated_shelf_life": estimated_shelf_life_days,
+        "estimated_shelf_life": shelf_life,
         "vendor_recommendation": recommendation,
-        "action_flag": action_flag
+        "storage_guidance": storage
     }

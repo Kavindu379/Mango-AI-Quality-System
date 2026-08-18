@@ -42,7 +42,7 @@ class MangoDataset(Dataset):
             image = self.transform(image)
         return image, label
 
-# REFINED DATA AUGMENTATION PIPELINE
+# ADVANCED DATA AUGMENTATION PIPELINE (Optimized for MobileNetV2)
 train_transforms = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.RandomHorizontalFlip(p=0.5),
@@ -60,26 +60,27 @@ val_transforms = transforms.Compose([
 
 def train_and_evaluate():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"[INFO] Initializing PyTorch CNN Training on device: {device}...")
+    print(f"[INFO] Initializing MobileNetV2 Transfer Learning Training on device: {device}...")
     
     train_dataset = MangoDataset('dataset/train', transform=train_transforms)
     val_dataset = MangoDataset('dataset/val', transform=val_transforms)
     
     if len(train_dataset) == 0:
-        print("[ERROR] No training images found in dataset/train! Please add images to dataset/train/Grade_A_Ripe, Grade_B_Unripe, Grade_C_Overripe.")
+        print("[ERROR] No training images found in dataset/train! Please add images to dataset/train/Grade_A_Ripe, Grade_B_Unripe, Grade_C_Overripe, Non_Mango.")
         return
         
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False) if len(val_dataset) > 0 else train_loader
 
-    model = build_mango_cnn_model(num_classes=3).to(device)
+    # Explicitly use MobileNetV2 Transfer Learning
+    model = build_mango_cnn_model(num_classes=len(CLASS_NAMES), model_type='mobilenet').to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 
     history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
     
-    print(f"[INFO] Starting PyTorch Fine-Tuning for {EPOCHS} Epochs (LR: {LEARNING_RATE})...")
+    print(f"[INFO] Starting MobileNetV2 Transfer Learning Fine-Tuning for {EPOCHS} Epochs (LR: {LEARNING_RATE})...")
     start_time = time.time()
 
     for epoch in range(1, EPOCHS + 1):
@@ -133,11 +134,11 @@ def train_and_evaluate():
         print(f"Epoch [{epoch:02d}/{EPOCHS:02d}] | Train Loss: {epoch_train_loss:.4f} - Train Acc: {epoch_train_acc:.2f}% | Val Loss: {epoch_val_loss:.4f} - Val Acc: {epoch_val_acc:.2f}%")
 
     training_time = time.time() - start_time
-    print(f"[SUCCESS] Model Training Completed in {training_time:.2f} seconds!")
+    print(f"[SUCCESS] MobileNetV2 Model Training Completed in {training_time:.2f} seconds!")
     
     # Save Model State Dict Weights
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
-    print(f"[INFO] Saved trained model weights to '{MODEL_SAVE_PATH}'.")
+    print(f"[INFO] Saved trained MobileNetV2 model weights to '{MODEL_SAVE_PATH}'.")
     
     # Plot Training Performance Curves
     plot_performance_curves(history)
@@ -151,7 +152,7 @@ def plot_performance_curves(history):
     
     ax1.plot(epochs_range, history['train_loss'], label='Train Loss', color='#f59e0b', linewidth=2)
     ax1.plot(epochs_range, history['val_loss'], label='Val Loss', color='#ef4444', linewidth=2, linestyle='--')
-    ax1.set_title('CNN Loss Progression')
+    ax1.set_title('MobileNetV2 Loss Progression')
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss')
     ax1.legend()
@@ -159,7 +160,7 @@ def plot_performance_curves(history):
     
     ax2.plot(epochs_range, history['train_acc'], label='Train Acc', color='#10b981', linewidth=2)
     ax2.plot(epochs_range, history['val_acc'], label='Val Acc', color='#38bdf8', linewidth=2, linestyle='--')
-    ax2.set_title('CNN Accuracy Progression (%)')
+    ax2.set_title('MobileNetV2 Accuracy Progression (%)')
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Accuracy (%)')
     ax2.legend()
@@ -183,12 +184,12 @@ def plot_confusion_matrix(model, dataloader, device):
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.numpy())
             
-    cm = confusion_matrix(all_labels, all_preds, labels=[0, 1, 2])
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Grade A', 'Grade B', 'Grade C'])
+    cm = confusion_matrix(all_labels, all_preds, labels=list(range(len(CLASS_NAMES))))
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Grade A', 'Grade B', 'Grade C', 'Non Mango'])
     
     fig, ax = plt.subplots(figsize=(6, 5))
     disp.plot(ax=ax, cmap='YlOrRd', values_format='d')
-    plt.title('PyTorch CNN Model Confusion Matrix')
+    plt.title('MobileNetV2 Model Confusion Matrix')
     plt.tight_layout()
     plt.savefig('confusion_matrix.png', dpi=300)
     plt.close()
