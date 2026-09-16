@@ -98,34 +98,15 @@ def predict_mango():
 
     try:
         tensor_batch, img_rgb = preprocess_image_pytorch(image)
-        color_features = extract_hsv_color_analysis(img_rgb)
         
-        # 1. HARD PRE-FILTER: Verify skin color threshold
-        is_valid_mango, validation_msg = validate_is_mango_candidate(color_features, 1.0, img_rgb)
-        
+        cropped_mango_rgb = img_rgb
         pred_class = 'Grade_A_Ripe'
         conf = 0.95
         class_probs = {}
         has_yolo_detection = False
+        bounding_box_coords = None
 
-        if not is_valid_mango:
-            pred_class = 'Non_Mango'
-            conf = 0.99
-            rule_results = evaluate_mango_decision_rules('Non_Mango', 0.99, base_price_per_kg=base_price)
-            return jsonify({
-                "success": True,
-                "is_valid_mango": False,
-                "prediction": {
-                    "class_code": "Non_Mango",
-                    "display_name": CLASS_DISPLAY_NAMES.get("Non_Mango", "Invalid Object / Not a Mango 🚫"),
-                    "confidence_percentage": 99.0,
-                    "class_probabilities": {"Non_Mango": 99.0}
-                },
-                "computer_vision_features": color_features,
-                "rule_engine": rule_results
-            })
-
-        # 2. Run YOLOv8 Inference with Standard Confidence Threshold (conf=0.35)
+        # 1. Run YOLOv8 Inference & Auto-Crop Bounding Box Region
         if y_m is not None:
             results = y_m(img_rgb, conf=0.35, verbose=False)
             if len(results[0].boxes) > 0:
@@ -133,6 +114,16 @@ def predict_mango():
                 conf = float(top_box.conf[0].cpu().item())
                 cls_id = int(top_box.cls[0].cpu().item())
                 
+                # Extract Bounding Box Coordinates [x1, y1, x2, y2]
+                xyxy = top_box.xyxy[0].cpu().numpy().astype(int)
+                x1, y1, x2, y2 = max(0, xyxy[0]), max(0, xyxy[1]), min(img_rgb.shape[1], xyxy[2]), min(img_rgb.shape[0], xyxy[3])
+                
+                # AUTO-CROP MANGO REGION: Removes background hands, tables, & room clutter!
+                if (x2 - x1) > 20 and (y2 - y1) > 20:
+                    cropped_mango_rgb = img_rgb[y1:y2, x1:x2]
+                    bounding_box_coords = [int(x1), int(y1), int(x2), int(y2)]
+                    print(f"[INFO] YOLOv8 Auto-Cropped Mango Region: Box [{x1}, {y1}, {x2}, {y2}]")
+
                 # Roboflow dataset class mapping: 0 -> Grade_A_Ripe, 1 -> Grade_B_Unripe, 2 -> Grade_C_Overripe, 3 -> Grade_A_Ripe
                 if cls_id == 1:
                     pred_class = 'Grade_B_Unripe'
@@ -147,11 +138,38 @@ def predict_mango():
                 pred_class = 'Non_Mango'
                 conf = 0.99
                 has_yolo_detection = False
-                
-        # 3. Fallback to MobileNetV2 PyTorch model if YOLO is not active
-        elif p_m is not None:
+
+        # 2. Extract OpenCV HSV features on the CROPPED MANGO region (100% clean fruit pixels!)
+        color_features = extract_hsv_color_analysis(cropped_mango_rgb)
+
+        # 3. Hybrid OpenCV HSV + AI Classification Fusion Rule:
+        # Physical feature analysis overrides CNN if severe rot/dark spots or green immaturity is detected!
+        dark_spots_pct = color_features.get('dark_spots_percentage', 0.0)
+        green_pct = color_features.get('green_percentage', 0.0)
+        yellow_pct = color_features.get('yellow_percentage', 0.0)
+
+        if dark_spots_pct >= 10.0:
+            pred_class = 'Grade_C_Overripe'
+            conf = max(conf, 0.92)
+            class_probs = {'Grade_C_Overripe': round(conf * 100, 2), 'Grade_A_Ripe': 5.0, 'Grade_B_Unripe': 1.0, 'Non_Mango': 0.0}
+            print(f"[HYBRID AI FUSION] Severe Dark Spots detected ({dark_spots_pct}%) -> Classified as Grade_C_Overripe!")
+        elif green_pct >= 45.0 and yellow_pct < 15.0 and dark_spots_pct < 8.0:
+            pred_class = 'Grade_B_Unripe'
+            conf = max(conf, 0.90)
+            class_probs = {'Grade_B_Unripe': round(conf * 100, 2), 'Grade_A_Ripe': 8.0, 'Grade_C_Overripe': 2.0, 'Non_Mango': 0.0}
+            print(f"[HYBRID AI FUSION] Predominantly Green skin ({green_pct}%) -> Classified as Grade_B_Unripe!")
+
+        # 4. Hybrid Out-Of-Distribution (OOD) Guard
+        is_valid_mango, validation_msg = validate_is_mango_candidate(color_features, conf, cropped_mango_rgb)
+        
+        # 5. Fallback to MobileNetV2 PyTorch model if YOLO is not active
+        if y_m is None and p_m is not None:
+            # Preprocess the cropped mango for MobileNetV2
+            cropped_pil = Image.fromarray(cropped_mango_rgb)
+            cropped_tensor, _ = preprocess_image_pytorch(cropped_pil)
+            
             with torch.no_grad():
-                logits = p_m(tensor_batch)
+                logits = p_m(cropped_tensor)
                 probabilities = F.softmax(logits, dim=1).numpy()[0]
                 pred_index = int(np.argmax(probabilities))
                 if pred_index < len(CLASS_NAMES):
@@ -162,27 +180,38 @@ def predict_mango():
                     for i in range(min(len(CLASS_NAMES), len(probabilities)))
                 }
             has_yolo_detection = True
-        else:
-            y_pct = color_features['yellow_percentage']
-            g_pct = color_features['green_percentage']
-            d_pct = color_features['dark_spots_percentage']
-            if d_pct > 3.0:
+
+        # 4. Enforce Hybrid CV + Deep Learning Feature Fusion Rule
+        # If OpenCV physical feature extraction detects over 10.0% dark spot decay/rot coverage,
+        # override prediction to Grade_C_Overripe regardless of YOLO bounding box label!
+        dark_spots_pct = color_features.get('dark_spots_percentage', 0.0)
+        green_pct = color_features.get('green_percentage', 0.0)
+        yellow_pct = color_features.get('yellow_percentage', 0.0)
+
+        if is_valid_mango and pred_class != 'Non_Mango':
+            if dark_spots_pct >= 10.0:
                 pred_class = 'Grade_C_Overripe'
-                conf = 0.88
-            elif g_pct > y_pct:
+                conf = max(conf, 0.95)
+                class_probs = {'Grade_C_Overripe': round(conf * 100, 2), 'Grade_A_Ripe': 5.0, 'Grade_B_Unripe': 1.0}
+                print(f"[HYBRID AI FUSION] Severe Dark Spots detected ({dark_spots_pct}%) -> Overriding to Grade_C_Overripe!")
+            elif green_pct >= 45.0 and yellow_pct < 15.0 and dark_spots_pct < 8.0:
                 pred_class = 'Grade_B_Unripe'
-                conf = 0.91
-            else:
-                pred_class = 'Grade_A_Ripe'
-                conf = 0.95
-            class_probs = {pred_class: conf * 100}
-            has_yolo_detection = True
+                conf = max(conf, 0.90)
+                class_probs = {'Grade_B_Unripe': round(conf * 100, 2), 'Grade_A_Ripe': 8.0, 'Grade_C_Overripe': 2.0}
+                print(f"[HYBRID AI FUSION] Predominantly Green skin ({green_pct}%) -> Overriding to Grade_B_Unripe!")
+
+        # Enforce Non_Mango if skin color features fail OR 0 YOLO boxes detected
+        if not is_valid_mango or (y_m is not None and not has_yolo_detection) or pred_class == 'Non_Mango':
+            pred_class = 'Non_Mango'
+            conf = 0.99
+            is_valid_mango = False
 
         rule_results = evaluate_mango_decision_rules(pred_class, conf, base_price_per_kg=base_price)
         
         return jsonify({
             "success": True,
             "is_valid_mango": is_valid_mango,
+            "bounding_box": bounding_box_coords,
             "prediction": {
                 "class_code": pred_class,
                 "display_name": CLASS_DISPLAY_NAMES.get(pred_class, pred_class),
