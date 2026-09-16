@@ -1,27 +1,50 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Scan,
-  Cpu,
-  Sparkles,
-  DollarSign,
-  Clock,
-  AlertCircle,
-  CheckCircle2,
-  Layers,
-  ShieldCheck,
-  BarChart3,
-  Upload,
-  Camera,
+import { 
+  Scan, 
+  Cpu, 
+  Sparkles, 
+  DollarSign, 
+  Clock, 
+  AlertCircle, 
+  CheckCircle2, 
+  Layers, 
+  ShieldCheck, 
+  BarChart3, 
+  Upload, 
+  Camera, 
   TrendingDown,
   Sun,
   Moon,
   Smartphone,
   X,
   Aperture,
-  AlertTriangle
+  AlertTriangle,
+  Target,
+  RefreshCw
 } from 'lucide-react';
 
 const API_BASE = `http://${window.location.hostname}:5000/api`;
+
+// Helper: RGB to HSV conversion in JS
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, v = max;
+  const d = max - min;
+  s = max === 0 ? 0 : d / max;
+
+  if (max === min) {
+    h = 0;
+  } else {
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [h * 360, s * 100, v * 100];
+}
 
 function App() {
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
@@ -35,12 +58,20 @@ function App() {
   const [result, setResult] = useState(null);
   const [backendOnline, setBackendOnline] = useState(true);
 
-  // Webcam Camera Modal State
+  // Webcam Camera Modal State & Device Switcher (Supports Iriun Webcam & HD Webcams)
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const [cameraError, setCameraError] = useState(null);
+  const [videoDevices, setVideoDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const liveCanvasRef = useRef(null);
+  const animFrameId = useRef(null);
+
+  // Exponential Moving Average (EMA) Bounding Box Smooth Tracking Ref
+  const smoothBoxRef = useRef({ x: 0, y: 0, w: 0, h: 0, active: false });
 
   // Apply Theme attribute
   useEffect(() => {
@@ -77,34 +108,217 @@ function App() {
       });
   }, []);
 
-  const openCameraModal = async () => {
-    setIsCameraModalOpen(true);
+  // Guarantee Video Element is bound to Camera Stream as soon as Modal Renders
+  useEffect(() => {
+    if (isCameraModalOpen && cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch(e => console.warn("Video play exception:", e));
+    }
+  }, [isCameraModalOpen, cameraStream]);
+
+  // Enumerate Working Camera Devices (Prioritizes Iriun Webcam HD Stream)
+  const refreshCameraDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const rawVideoInputs = devices.filter(d => d.kind === 'videoinput');
+      
+      const validInputs = rawVideoInputs.filter(d => {
+        const lbl = (d.label || '').toLowerCase().trim();
+        return lbl !== 'droidcam video';
+      });
+
+      const inputsToUse = validInputs.length > 0 ? validInputs : rawVideoInputs;
+      setVideoDevices(inputsToUse);
+      
+      if (inputsToUse.length > 0 && !selectedDeviceId) {
+        const preferredCam = inputsToUse.find(d => 
+          d.label.toLowerCase().includes('iriun') || 
+          d.label.toLowerCase().includes('usb2.0') ||
+          d.label.toLowerCase().includes('integrated') ||
+          d.label.toLowerCase().includes('webcam')
+        );
+        setSelectedDeviceId(preferredCam ? preferredCam.deviceId : inputsToUse[0].deviceId);
+      }
+    } catch (e) {
+      console.error("Failed to list camera devices:", e);
+    }
+  };
+
+  // Ultra-Fast Clean Live Fruit Tracking Loop
+  useEffect(() => {
+    if (isCameraModalOpen && cameraStream) {
+      const trackObjectInVideo = () => {
+        if (videoRef.current && liveCanvasRef.current && videoRef.current.readyState === 4) {
+          const video = videoRef.current;
+          const canvas = liveCanvasRef.current;
+          const ctx = canvas.getContext('2d');
+          
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = frame.data;
+          
+          const matchedPoints = [];
+          const step = 8;
+          
+          for (let y = 0; y < canvas.height; y += step) {
+            for (let x = 0; x < canvas.width; x += step) {
+              const i = (y * canvas.width + x) * 4;
+              const r = data[i];
+              const g = data[i + 1];
+              const b = data[i + 2];
+              
+              const [h, s, v] = rgbToHsv(r, g, b);
+              
+              // Vibrant Mango Yellow, Orange & Green Skin Tones
+              const isRipeYellow = (h >= 14 && h <= 44 && s >= 35 && v >= 40);
+              const isUnripeGreen = (h >= 45 && h <= 90 && s >= 30 && v >= 30);
+              
+              if (isRipeYellow || isUnripeGreen) {
+                matchedPoints.push({ x, y });
+              }
+            }
+          }
+          
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          if (matchedPoints.length > 25) {
+            let sumX = 0, sumY = 0;
+            matchedPoints.forEach(p => { sumX += p.x; sumY += p.y; });
+            const avgX = sumX / matchedPoints.length;
+            const avgY = sumY / matchedPoints.length;
+            
+            const validPoints = matchedPoints.filter(p => {
+              const dx = p.x - avgX;
+              const dy = p.y - avgY;
+              return (dx * dx + dy * dy) < (canvas.width * canvas.width * 0.16);
+            });
+            
+            if (validPoints.length > 18) {
+              let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+              validPoints.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+              });
+              
+              const rawW = maxX - minX;
+              const rawH = maxY - minY;
+              
+              if (rawW < canvas.width * 0.85 && rawH < canvas.height * 0.85 && rawW > 25 && rawH > 25) {
+                const smooth = smoothBoxRef.current;
+                if (!smooth.active) {
+                  smooth.x = minX;
+                  smooth.y = minY;
+                  smooth.w = rawW;
+                  smooth.h = rawH;
+                  smooth.active = true;
+                } else {
+                  smooth.x += (minX - smooth.x) * 0.35;
+                  smooth.y += (minY - smooth.y) * 0.35;
+                  smooth.w += (rawW - smooth.w) * 0.35;
+                  smooth.h += (rawH - smooth.h) * 0.35;
+                }
+
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 3.5;
+                ctx.shadowColor = '#10b981';
+                ctx.shadowBlur = 12;
+                ctx.strokeRect(smooth.x, smooth.y, smooth.w, smooth.h);
+                
+                ctx.fillStyle = '#10b981';
+                ctx.shadowBlur = 0;
+                ctx.fillRect(smooth.x, smooth.y > 28 ? smooth.y - 26 : smooth.y, 160, 24);
+                ctx.fillStyle = '#000000';
+                ctx.font = 'bold 12px Inter, sans-serif';
+                ctx.fillText('🥭 Target Mango Identified', smooth.x + 6, smooth.y > 28 ? smooth.y - 9 : smooth.y + 16);
+              } else {
+                smoothBoxRef.current.active = false;
+              }
+            } else {
+              smoothBoxRef.current.active = false;
+            }
+          } else {
+            smoothBoxRef.current.active = false;
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const size = 110;
+            
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 8]);
+            ctx.strokeRect(centerX - size/2, centerY - size/2, size, size);
+            ctx.setLineDash([]);
+            
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = 'bold 13px Inter, sans-serif';
+            ctx.fillText('🔍 Place Mango Inside Target', centerX - 80, centerY - size/2 - 10);
+          }
+        }
+        animFrameId.current = requestAnimationFrame(trackObjectInVideo);
+      };
+      
+      animFrameId.current = requestAnimationFrame(trackObjectInVideo);
+    }
+    
+    return () => {
+      if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+    };
+  }, [isCameraModalOpen, cameraStream]);
+
+  // Clean Native Camera Launcher
+  const startCameraWithDevice = async (deviceIdToUse) => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    
+    smoothBoxRef.current = { x: 0, y: 0, w: 0, h: 0, active: false };
     setCameraError(null);
     let stream = null;
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: 'environment' } }
-      });
+      if (deviceIdToUse) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceIdToUse } } });
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
     } catch (e1) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
       } catch (e2) {
-        console.error("Camera access failed:", e2);
-        setCameraError("Browser blocked live video stream over HTTP. Use 'Snap Live Photo' button to open your phone's camera directly!");
+        console.error("Camera stream error:", e2);
+        setCameraError("Could not access camera device. Please check browser permissions.");
         return;
       }
     }
 
     if (stream) {
       setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      refreshCameraDevices();
     }
   };
 
+  const openCameraModal = async () => {
+    setIsCameraModalOpen(true);
+    await startCameraWithDevice(selectedDeviceId);
+  };
+
+  const handleDeviceChange = (e) => {
+    const newDeviceId = e.target.value;
+    setSelectedDeviceId(newDeviceId);
+    startCameraWithDevice(newDeviceId);
+  };
+
   const closeCameraModal = () => {
+    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+    smoothBoxRef.current = { x: 0, y: 0, w: 0, h: 0, active: false };
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
@@ -113,26 +327,65 @@ function App() {
     setCameraError(null);
   };
 
+  // CROPS ONLY THE TRACKED MANGO BOUNDING BOX REGION FOR MAXIMUM FOCUS & ACCURACY
   const captureWebcamPhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+      const smooth = smoothBoxRef.current;
+      
+      const videoW = video.videoWidth || 1280;
+      const videoH = video.videoHeight || 720;
+
+      const liveCanvas = liveCanvasRef.current;
+      const displayW = liveCanvas ? liveCanvas.width : videoW;
+      const displayH = liveCanvas ? liveCanvas.height : videoH;
+
+      const scaleX = videoW / displayW;
+      const scaleY = videoH / displayH;
 
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      // If live object tracking locked onto a mango, crop strictly to that target box!
+      if (smooth && smooth.active && smooth.w > 25 && smooth.h > 25) {
+        const padX = smooth.w * 0.12;
+        const padY = smooth.h * 0.12;
+
+        const cropX = Math.max(0, (smooth.x - padX) * scaleX);
+        const cropY = Math.max(0, (smooth.y - padY) * scaleY);
+        const cropW = Math.min(videoW - cropX, (smooth.w + padX * 2) * scaleX);
+        const cropH = Math.min(videoH - cropY, (smooth.h + padY * 2) * scaleY);
+
+        canvas.width = cropW;
+        canvas.height = cropH;
+        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+      } else {
+        // Fallback: Full frame photo
+        canvas.width = videoW;
+        canvas.height = videoH;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
+      
       canvas.toBlob((blob) => {
         if (blob) {
-          const capturedFile = new File([blob], "camera_snapshot.jpg", { type: "image/jpeg" });
+          const capturedFile = new File([blob], "focused_tracked_mango.jpg", { type: "image/jpeg" });
           setSelectedFile(capturedFile);
           setSampleName(null);
           setPreviewUrl(URL.createObjectURL(blob));
           handleEvaluate(capturedFile, null, basePrice);
           closeCameraModal();
         }
-      }, 'image/jpeg');
+      }, 'image/jpeg', 0.95);
+    }
+  };
+
+  const handleSnapLivePhotoClick = () => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      const mobileInput = document.getElementById('mobile-camera-input');
+      if (mobileInput) mobileInput.click();
+    } else {
+      openCameraModal();
     }
   };
 
@@ -222,7 +475,7 @@ function App() {
     <div className="app-container">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* WEBCAM CAMERA MODAL OVERLAY (FOR DESKTOP) */}
+      {/* FULL HD LAPTOP WEBCAM SCANNER MODAL */}
       {isCameraModalOpen && (
         <div style={{
           position: 'fixed',
@@ -242,7 +495,7 @@ function App() {
           <div style={{
             position: 'relative',
             width: '100%',
-            maxWidth: '680px',
+            maxWidth: '740px',
             backgroundColor: 'var(--bg-surface)',
             border: '1px solid var(--amber-primary)',
             borderRadius: '1.25rem',
@@ -250,13 +503,40 @@ function App() {
             boxShadow: '0 25px 50px -12px rgba(245, 158, 11, 0.25)',
             textAlign: 'center'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--amber-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Aperture size={20} /> Live Camera Scanner
+            {/* Modal Header & Device Selector Dropdown */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--amber-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Target size={20} className="spin-loader" /> Full HD Camera Scanner
               </h3>
-              <button onClick={closeCameraModal} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                <X size={24} />
-              </button>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {videoDevices.length > 0 && (
+                  <select 
+                    value={selectedDeviceId} 
+                    onChange={handleDeviceChange}
+                    style={{
+                      background: 'var(--bg-card)',
+                      color: 'var(--amber-primary)',
+                      border: '1px solid var(--amber-primary)',
+                      borderRadius: '0.5rem',
+                      padding: '0.35rem 0.65rem',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {videoDevices.map((dev, idx) => (
+                      <option key={dev.deviceId || idx} value={dev.deviceId}>
+                        {dev.label || `Camera ${idx + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <button onClick={closeCameraModal} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  <X size={24} />
+                </button>
+              </div>
             </div>
 
             {cameraError ? (
@@ -265,9 +545,34 @@ function App() {
                 <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.5rem' }}>{cameraError}</p>
               </div>
             ) : (
-              <div style={{ position: 'relative', width: '100%', maxHeight: '400px', backgroundColor: '#000', borderRadius: '0.85rem', overflow: 'hidden', marginBottom: '1.25rem', border: '1px solid var(--border-subtle)' }}>
-                <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', maxHeight: '400px', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '200px', height: '200px', border: '2px dashed rgba(245, 158, 11, 0.6)', borderRadius: '50%', pointerEvents: 'none' }} />
+              <div style={{ position: 'relative', width: '100%', maxHeight: '420px', backgroundColor: '#000', borderRadius: '0.85rem', overflow: 'hidden', marginBottom: '1.25rem', border: '1px solid var(--border-subtle)' }}>
+                {/* VIDEO STREAM */}
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  muted
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    maxHeight: '420px', 
+                    objectFit: 'cover'
+                  }} 
+                />
+                
+                {/* REAL-TIME TIGHT OBJECT TRACKING CANVAS OVERLAY */}
+                <canvas 
+                  ref={liveCanvasRef} 
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    pointerEvents: 'none',
+                    objectFit: 'cover'
+                  }} 
+                />
               </div>
             )}
 
@@ -277,7 +582,7 @@ function App() {
               </button>
               {!cameraError && (
                 <button onClick={captureWebcamPhoto} style={{ background: 'linear-gradient(135deg, var(--amber-primary), #d97706)', color: '#fff', border: 'none', padding: '0.75rem 2rem', borderRadius: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 4px 15px var(--amber-glow)' }}>
-                  <Camera size={18} /> Capture & Scan Mango
+                  <Camera size={18} /> Capture Focused Mango Box
                 </button>
               )}
             </div>
@@ -358,18 +663,19 @@ function App() {
             </div>
 
             <div className="action-buttons-grid">
-              <label className="action-btn-camera" htmlFor="mobile-camera-input">
+              <button className="action-btn-camera" onClick={handleSnapLivePhotoClick} style={{ border: 'none', cursor: 'pointer' }}>
                 <Camera size={18} />
                 <span>Snap Live Photo</span>
-                <input
-                  id="mobile-camera-input"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleMobileCameraCapture}
-                  style={{ display: 'none' }}
-                />
-              </label>
+              </button>
+
+              <input
+                id="mobile-camera-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleMobileCameraCapture}
+                style={{ display: 'none' }}
+              />
 
               <label className="action-btn-upload" htmlFor="mango-file-input">
                 <Upload size={18} />
@@ -419,6 +725,7 @@ function App() {
               </div>
             </div>
 
+            {/* PREVIEW FRAME */}
             {previewUrl && (
               <div className="image-preview-frame">
                 <img src={previewUrl} alt="Target Mango" />
@@ -444,7 +751,6 @@ function App() {
               </div>
             ) : result ? (
               <div>
-                {/* INVALID OBJECT WARNING BANNER */}
                 {(!result.is_valid_mango || result.prediction.class_code === 'Non_Mango') && (
                   <div style={{
                     padding: '1rem 1.25rem',
@@ -468,11 +774,12 @@ function App() {
                   </div>
                 )}
 
-                <div className={`result-banner ${result.prediction.class_code === 'Grade_A_Ripe' ? 'result-banner-grade-a' :
-                    result.prediction.class_code === 'Grade_B_Unripe' ? 'result-banner-grade-b' :
-                      result.prediction.class_code === 'Grade_C_Overripe' ? 'result-banner-grade-c' :
-                        'result-banner-grade-c'
-                  }`}>
+                <div className={`result-banner ${
+                  result.prediction.class_code === 'Grade_A_Ripe' ? 'result-banner-grade-a' : 
+                  result.prediction.class_code === 'Grade_B_Unripe' ? 'result-banner-grade-b' : 
+                  result.prediction.class_code === 'Grade_C_Overripe' ? 'result-banner-grade-c' : 
+                  'result-banner-grade-c'
+                }`}>
                   <div>
                     <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.8 }}>Quality Grade</div>
                     <div className="result-banner-text">{result.prediction.display_name}</div>
