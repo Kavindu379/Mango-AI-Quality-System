@@ -20,9 +20,8 @@ class MangoMobileNetV2(nn.Module):
         except Exception:
             self.base_model = models.mobilenet_v2(pretrained=pretrained)
         
-        # Freeze base feature extractor layers
-        for param in self.base_model.features.parameters():
-            param.requires_grad = False
+        # Freeze base feature extractor layers by default for Stage 1
+        self.freeze_backbone()
             
         # Replace classifier head for 4 Quality Classes
         in_features = self.base_model.classifier[1].in_features
@@ -30,6 +29,31 @@ class MangoMobileNetV2(nn.Module):
             nn.Dropout(0.3),
             nn.Linear(in_features, num_classes)
         )
+
+    def freeze_backbone(self):
+        """Freezes all backbone feature extraction layers for Stage 1 training."""
+        for param in self.base_model.features.parameters():
+            param.requires_grad = False
+
+    def unfreeze_backbone(self, unfreeze_from_block=10):
+        """
+        Unfreezes upper feature blocks of MobileNetV2 backbone for Stage 2 Fine-Tuning.
+        MobileNetV2 features has 19 sequential blocks (0..18).
+        """
+        total_blocks = len(self.base_model.features)
+        print(f"[INFO] Unfreezing MobileNetV2 backbone layers from block {unfreeze_from_block} to {total_blocks - 1}...")
+        for i, block in enumerate(self.base_model.features):
+            if i >= unfreeze_from_block:
+                for param in block.parameters():
+                    param.requires_grad = True
+
+    def get_backbone_params(self):
+        """Returns parameters of the backbone feature extractor that require gradients."""
+        return [p for p in self.base_model.features.parameters() if p.requires_grad]
+
+    def get_classifier_params(self):
+        """Returns parameters of the classifier head."""
+        return [p for p in self.base_model.classifier.parameters() if p.requires_grad]
 
     def forward(self, x):
         return self.base_model(x)

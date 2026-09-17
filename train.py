@@ -75,15 +75,32 @@ def train_and_evaluate():
     # Explicitly use MobileNetV2 Transfer Learning
     model = build_mango_cnn_model(num_classes=len(CLASS_NAMES), model_type='mobilenet').to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+    
+    # STAGE 1 OPTIMIZER: Train Classifier Head Only
+    stage1_epochs = 5
+    optimizer = optim.Adam(model.get_classifier_params(), lr=LEARNING_RATE, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=stage1_epochs)
 
     history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
     
-    print(f"[INFO] Starting MobileNetV2 Transfer Learning Fine-Tuning for {EPOCHS} Epochs (LR: {LEARNING_RATE})...")
+    print(f"[INFO] STAGE 1: Training Classifier Head for {stage1_epochs} Epochs (Frozen Backbone, LR: {LEARNING_RATE})...")
     start_time = time.time()
 
     for epoch in range(1, EPOCHS + 1):
+        # Transition to Stage 2: Unfreeze Backbone & Use Differential Learning Rates
+        if epoch == stage1_epochs + 1:
+            print("\n[INFO] 🚀 TRANSITIONING TO STAGE 2: Unfreezing Upper MobileNetV2 Backbone for Fine-Tuning!")
+            if hasattr(model, 'unfreeze_backbone'):
+                model.unfreeze_backbone(unfreeze_from_block=10)
+                backbone_params = model.get_backbone_params()
+                head_params = model.get_classifier_params()
+                optimizer = optim.Adam([
+                    {'params': backbone_params, 'lr': 1e-5},  # Tiny LR for pre-trained feature weights
+                    {'params': head_params, 'lr': 1e-4}      # Standard LR for classifier head
+                ], weight_decay=1e-4)
+                scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS - stage1_epochs)
+                print("[INFO] Configured Differential Learning Rates: Backbone LR = 1e-5, Head LR = 1e-4\n")
+
         model.train()
         running_loss = 0.0
         correct = 0
@@ -131,10 +148,11 @@ def train_and_evaluate():
         history['val_loss'].append(epoch_val_loss)
         history['val_acc'].append(epoch_val_acc)
         
-        print(f"Epoch [{epoch:02d}/{EPOCHS:02d}] | Train Loss: {epoch_train_loss:.4f} - Train Acc: {epoch_train_acc:.2f}% | Val Loss: {epoch_val_loss:.4f} - Val Acc: {epoch_val_acc:.2f}%")
+        stage_label = "Stage 1" if epoch <= stage1_epochs else "Stage 2 (Fine-Tuning)"
+        print(f"[{stage_label}] Epoch [{epoch:02d}/{EPOCHS:02d}] | Train Loss: {epoch_train_loss:.4f} - Train Acc: {epoch_train_acc:.2f}% | Val Loss: {epoch_val_loss:.4f} - Val Acc: {epoch_val_acc:.2f}%")
 
     training_time = time.time() - start_time
-    print(f"[SUCCESS] MobileNetV2 Model Training Completed in {training_time:.2f} seconds!")
+    print(f"[SUCCESS] MobileNetV2 2-Stage Fine-Tuning Completed in {training_time:.2f} seconds!")
     
     # Save Model State Dict Weights
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
