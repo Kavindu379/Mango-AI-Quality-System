@@ -10,6 +10,54 @@ CLASS_DISPLAY_NAMES = {
     'Non_Mango': 'Invalid Object / Not a Mango 🚫'
 }
 
+class MangoEfficientNetB0(nn.Module):
+    """EfficientNet-B0 Transfer Learning Architecture with 2-Stage Fine-Tuning Support."""
+    def __init__(self, num_classes=4, pretrained=True):
+        super(MangoEfficientNetB0, self).__init__()
+        try:
+            weights = models.EfficientNet_B0_Weights.DEFAULT if pretrained else None
+            self.base_model = models.efficientnet_b0(weights=weights)
+        except Exception:
+            self.base_model = models.efficientnet_b0(pretrained=pretrained)
+        
+        # Freeze base backbone layers by default for Stage 1
+        self.freeze_backbone()
+            
+        # Replace classifier head for target classes
+        in_features = self.base_model.classifier[1].in_features
+        self.base_model.classifier = nn.Sequential(
+            nn.Dropout(0.3),
+            nn.Linear(in_features, num_classes)
+        )
+
+    def freeze_backbone(self):
+        """Freezes all backbone feature extraction layers for Stage 1 training."""
+        for param in self.base_model.features.parameters():
+            param.requires_grad = False
+
+    def unfreeze_backbone(self, unfreeze_from_block=5):
+        """
+        Unfreezes upper feature blocks of EfficientNet-B0 backbone for Stage 2 Fine-Tuning.
+        EfficientNet-B0 features has 9 sequential blocks (0..8).
+        """
+        total_blocks = len(self.base_model.features)
+        print(f"[INFO] Unfreezing EfficientNet-B0 backbone layers from block {unfreeze_from_block} to {total_blocks - 1}...")
+        for i, block in enumerate(self.base_model.features):
+            if i >= unfreeze_from_block:
+                for param in block.parameters():
+                    param.requires_grad = True
+
+    def get_backbone_params(self):
+        """Returns parameters of the backbone feature extractor that require gradients."""
+        return [p for p in self.base_model.features.parameters() if p.requires_grad]
+
+    def get_classifier_params(self):
+        """Returns parameters of the classifier head."""
+        return [p for p in self.base_model.classifier.parameters() if p.requires_grad]
+
+    def forward(self, x):
+        return self.base_model(x)
+
 class MangoMobileNetV2(nn.Module):
     """MobileNetV2 Transfer Learning Architecture leveraging 1.4M ImageNet Pre-trained Feature Weights."""
     def __init__(self, num_classes=4, pretrained=True):
@@ -91,13 +139,17 @@ class DeepMangoCNN(nn.Module):
         x = self.fc2(x)
         return x
 
-def build_mango_cnn_model(num_classes=4, model_type='mobilenet'):
+def build_mango_cnn_model(num_classes=4, model_type='efficientnet'):
     """
     Factory function returning model instance.
-    - model_type='mobilenet': MobileNetV2 Transfer Learning (Recommended!)
+    - model_type='efficientnet': EfficientNet-B0 Transfer Learning (Recommended State-of-the-Art!)
+    - model_type='mobilenet': MobileNetV2 Transfer Learning
     - model_type='deep_cnn': Custom 4-Block Deep CNN
     """
-    if model_type == 'mobilenet':
+    if model_type == 'efficientnet':
+        print(f"[INFO] Initializing EfficientNet-B0 Transfer Learning Model (Classes: {num_classes})...")
+        return MangoEfficientNetB0(num_classes=num_classes)
+    elif model_type == 'mobilenet':
         print(f"[INFO] Initializing MobileNetV2 Transfer Learning Model (Classes: {num_classes})...")
         return MangoMobileNetV2(num_classes=num_classes)
     else:
@@ -105,6 +157,7 @@ def build_mango_cnn_model(num_classes=4, model_type='mobilenet'):
         return DeepMangoCNN(num_classes=num_classes)
 
 if __name__ == '__main__':
-    model = build_mango_cnn_model(model_type='mobilenet')
+    model = build_mango_cnn_model(model_type='efficientnet')
     dummy_input = torch.randn(1, 3, 224, 224)
-    print("MobileNetV2 Output Shape:", model(dummy_input).shape)
+    print("EfficientNet-B0 Output Shape:", model(dummy_input).shape)
+

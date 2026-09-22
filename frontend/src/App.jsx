@@ -246,8 +246,9 @@ function App() {
             for (let x = 0; x < canvas.width; x += step) {
               const i = (y * canvas.width + x) * 4;
               const [h, s, v] = rgbToHsv(data[i], data[i + 1], data[i + 2]);
-              const isRipeYellow = (h >= 14 && h <= 44 && s >= 35 && v >= 40);
-              const isUnripeGreen = (h >= 45 && h <= 90 && s >= 30 && v >= 30);
+              // Sync with backend OpenCV masks: OpenCV Hue (0-180) -> JS Hue (0-360)
+              const isRipeYellow = (h >= 28 && h <= 68 && s >= 29 && v >= 24);
+              const isUnripeGreen = (h >= 70 && h <= 184 && s >= 10 && v >= 24);
               
               if (isRipeYellow || isUnripeGreen) {
                 matchedPoints.push({ x, y });
@@ -536,13 +537,17 @@ function App() {
 
   const getSampleDisplayInfo = (filename, index) => {
     const fn = filename.toLowerCase();
-    if (fn.includes('unripe') || fn.includes('green') || index === 1) {
+    if (fn.includes('unripe') || fn.includes('green')) {
       return { icon: '🍏', title: 'Grade B (Unripe)' };
     }
-    if (fn.includes('overripe') || fn.includes('damaged') || index === 2) {
+    if (fn.includes('overripe') || fn.includes('damaged') || fn.includes('rot')) {
       return { icon: '🍂', title: 'Grade C (Overripe)' };
     }
-    return { icon: '🥭', title: 'Grade A (Ripe)' };
+    if (fn.includes('ripe') || fn.includes('grade_a')) {
+      return { icon: '🥭', title: 'Grade A (Ripe)' };
+    }
+    // Fallback if the file is just named 1.jpeg, 2.jpeg, etc.
+    return { icon: '🖼️', title: filename };
   };
 
   const currSymbol = CURRENCIES[currency]?.symbol || 'Rs.';
@@ -829,7 +834,7 @@ function App() {
                         Invalid Object Detected 🚫
                       </h4>
                       <p style={{ color: 'var(--text-main)', fontSize: '0.85rem', lineHeight: 1.4 }}>
-                        The scanned item does not match Mango visual characteristics or color features. Please scan a valid Mango (Ripe, Unripe, or Overripe).
+                        {result.rejection_reason || "The scanned item does not match Mango visual characteristics or color features. Please scan a valid Mango (Ripe, Unripe, or Overripe)."}
                       </p>
                     </div>
                   </div>

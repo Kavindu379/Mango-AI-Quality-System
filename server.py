@@ -3,6 +3,7 @@ import io
 import base64
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 import torch
 import torch.nn.functional as F
 from PIL import Image
@@ -25,13 +26,15 @@ yolo_model = None
 def get_or_load_models():
     global pytorch_model, yolo_model
     
-    if yolo_model is None and os.path.exists(YOLO_MODEL_PATH):
-        try:
-            from ultralytics import YOLO
-            yolo_model = YOLO(YOLO_MODEL_PATH)
-            print("[SUCCESS] Loaded YOLOv8 Object Detection & Quality model (best.pt)!")
-        except Exception as e:
-            print(f"[ERROR] Failed to load YOLOv8 model: {e}")
+    if yolo_model is None:
+        yolo_path = 'best_seg.pt' if os.path.exists('best_seg.pt') else YOLO_MODEL_PATH
+        if os.path.exists(yolo_path):
+            try:
+                from ultralytics import YOLO
+                yolo_model = YOLO(yolo_path)
+                print(f"[SUCCESS] Loaded YOLOv8 model ({yolo_path})!")
+            except Exception as e:
+                print(f"[ERROR] Failed to load YOLOv8 model: {e}")
 
     if pytorch_model is None and os.path.exists(PYTORCH_MODEL_PATH):
         try:
@@ -83,7 +86,7 @@ def predict_mango():
         file = request.files['image']
         image = Image.open(file.stream).convert('RGB')
     elif 'sample_name' in request.form:
-        sample_name = request.form.get('sample_name')
+        sample_name = secure_filename(request.form.get('sample_name'))
         sample_path = os.path.join(TEST_IMAGES_DIR, sample_name)
         if os.path.exists(sample_path):
             image = Image.open(sample_path).convert('RGB')
@@ -101,8 +104,9 @@ def predict_mango():
         cropped_mango_rgb = img_rgb
         bounding_box_coords = None
         has_yolo_detection = False
+        mango_mask_np = None
 
-        # 1. Run YOLOv8 for Object Detection & Auto-Crop Bounding Box Region
+        # 1. Run YOLOv8 for Object Detection / Segmentation & Auto-Crop Region
         if y_m is not None:
             results = y_m(img_rgb, conf=0.25, verbose=False)
             if len(results[0].boxes) > 0:
@@ -110,15 +114,25 @@ def predict_mango():
                 xyxy = top_box.xyxy[0].cpu().numpy().astype(int)
                 x1, y1, x2, y2 = max(0, xyxy[0]), max(0, xyxy[1]), min(img_rgb.shape[1], xyxy[2]), min(img_rgb.shape[0], xyxy[3])
                 
-                # AUTO-CROP MANGO REGION: Removes background clutter (hands, tables, rooms)!
+                # AUTO-CROP MANGO REGION: Removes background clutter!
                 if (x2 - x1) > 20 and (y2 - y1) > 20:
                     cropped_mango_rgb = img_rgb[y1:y2, x1:x2]
                     bounding_box_coords = [int(x1), int(y1), int(x2), int(y2)]
                     print(f"[INFO] YOLOv8 Auto-Cropped Mango Region: Box [{x1}, {y1}, {x2}, {y2}]")
+                    
+                    # Extract Segmentation Mask if model supports it
+                    if hasattr(results[0], 'masks') and results[0].masks is not None and len(results[0].masks) > 0:
+                        import cv2
+                        full_mask = results[0].masks.data[0].cpu().numpy()
+                        full_mask_resized = cv2.resize(full_mask, (img_rgb.shape[1], img_rgb.shape[0]), interpolation=cv2.INTER_NEAREST)
+                        mango_mask_np = full_mask_resized[y1:y2, x1:x2]
+                        mango_mask_np = (mango_mask_np > 0.5).astype(np.uint8) * 255
+                        print("[INFO] YOLOv8-Seg applied perfect polygon mask to crop.")
+                    
                 has_yolo_detection = True
 
         # 2. Extract OpenCV HSV features on the cropped mango region
-        color_features = extract_hsv_color_analysis(cropped_mango_rgb)
+        color_features = extract_hsv_color_analysis(cropped_mango_rgb, mask_np=mango_mask_np)
 
         # 3. MobileNetV2 Transfer Learning Classification (Primary Classifier - 96.84% Accuracy)
         pred_class = 'Grade_A_Ripe'
@@ -130,8 +144,19 @@ def predict_mango():
             cropped_tensor, _ = preprocess_image_pytorch(cropped_pil)
             
             with torch.no_grad():
-                logits = p_m(cropped_tensor)
-                probabilities = F.softmax(logits, dim=1).numpy()[0]
+                # 2x Test-Time Augmentation (TTA)
+                # 1. Original Image
+                logits_orig = p_m(cropped_tensor)
+                probs_orig = F.softmax(logits_orig, dim=1).numpy()[0]
+                
+                # 2. Horizontally Flipped Image
+                flipped_tensor = torch.flip(cropped_tensor, dims=[3])
+                logits_flip = p_m(flipped_tensor)
+                probs_flip = F.softmax(logits_flip, dim=1).numpy()[0]
+                
+                # Average Probabilities
+                probabilities = (probs_orig + probs_flip) / 2.0
+                
                 pred_index = int(np.argmax(probabilities))
                 if pred_index < len(CLASS_NAMES):
                     pred_class = CLASS_NAMES[pred_index]
@@ -144,7 +169,7 @@ def predict_mango():
 
         # 4. Out-Of-Distribution (OOD) Guard & Color Checks
         is_valid_mango, validation_msg = validate_is_mango_candidate(
-            color_features, conf, cropped_mango_rgb, has_yolo_detection=has_yolo_detection
+            color_features, conf, cropped_mango_rgb, has_yolo_detection=has_yolo_detection, mask_np=mango_mask_np
         )
 
         yellow_pct = color_features.get('yellow_percentage', 0.0)
@@ -164,20 +189,25 @@ def predict_mango():
             else:
                 pred_class = 'Grade_A_Ripe'
             conf = 0.90
+            class_probs = {k: 0.0 for k in class_probs}
             class_probs[pred_class] = round(conf * 100, 2)
             print(f"[STUDIO CUTOUT CORRECTION] Physical Mango Skin ({yellow_pct}% Yellow / {green_pct}% Green) Verified -> Corrected from Non_Mango to {pred_class}!")
 
-        # Severe physical rot override (e.g. dark spot decay area >= 20.0%)
-        if is_valid_mango and pred_class != 'Non_Mango' and dark_spots_pct >= 20.0:
+        # Severe physical rot override (e.g. dark spot decay area >= 15.0%)
+        # Only apply this if it's a valid object that actually HAS mango skin, preventing black shirts/shadows from becoming Grade C mangoes.
+        if is_valid_mango and pred_class != 'Non_Mango' and mango_skin_total >= 10.0 and dark_spots_pct >= 15.0:
             pred_class = 'Grade_C_Overripe'
             conf = max(conf, 0.95)
-            class_probs['Grade_C_Overripe'] = max(class_probs.get('Grade_C_Overripe', 0.0), round(conf * 100, 2))
+            class_probs = {k: 0.0 for k in class_probs}
+            class_probs['Grade_C_Overripe'] = round(conf * 100, 2)
             print(f"[HYBRID AI FUSION] Severe Dark Spots detected ({dark_spots_pct}%) -> Overriding to Grade_C_Overripe!")
 
         # Enforce Non_Mango only if is_valid_mango is False or pred_class is still Non_Mango
         if not is_valid_mango or pred_class == 'Non_Mango':
             pred_class = 'Non_Mango'
             conf = max(conf, 0.95)
+            class_probs = {k: 0.0 for k in class_probs}
+            class_probs['Non_Mango'] = round(conf * 100, 2)
             is_valid_mango = False
 
         rule_results = evaluate_mango_decision_rules(pred_class, conf, base_price_per_kg=base_price)
@@ -193,7 +223,8 @@ def predict_mango():
                 "class_probabilities": class_probs
             },
             "computer_vision_features": color_features,
-            "rule_engine": rule_results
+            "rule_engine": rule_results,
+            "rejection_reason": validation_msg if not is_valid_mango else None
         })
         
     except Exception as e:
@@ -201,6 +232,7 @@ def predict_mango():
 
 @app.route('/api/samples/<filename>', methods=['GET'])
 def get_sample_image(filename):
+    filename = secure_filename(filename)
     return send_from_directory(TEST_IMAGES_DIR, filename)
 
 if __name__ == '__main__':

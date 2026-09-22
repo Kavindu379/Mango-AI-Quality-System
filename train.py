@@ -42,7 +42,7 @@ class MangoDataset(Dataset):
             image = self.transform(image)
         return image, label
 
-# ADVANCED DATA AUGMENTATION PIPELINE (Optimized for MobileNetV2)
+# ADVANCED DATA AUGMENTATION PIPELINE (Optimized for EfficientNet-B0)
 train_transforms = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.RandomHorizontalFlip(p=0.5),
@@ -58,9 +58,29 @@ val_transforms = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=1, gamma=2, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+        self.ce = nn.CrossEntropyLoss(reduction='none')
+
+    def forward(self, inputs, targets):
+        ce_loss = self.ce(inputs, targets)
+        pt = torch.exp(-ce_loss)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+        
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
+
 def train_and_evaluate():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"[INFO] Initializing MobileNetV2 Transfer Learning Training on device: {device}...")
+    print(f"[INFO] Initializing EfficientNet-B0 Transfer Learning Training on device: {device}...")
     
     train_dataset = MangoDataset('dataset/train', transform=train_transforms)
     val_dataset = MangoDataset('dataset/val', transform=val_transforms)
@@ -72,9 +92,9 @@ def train_and_evaluate():
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False) if len(val_dataset) > 0 else train_loader
 
-    # Explicitly use MobileNetV2 Transfer Learning
-    model = build_mango_cnn_model(num_classes=len(CLASS_NAMES), model_type='mobilenet').to(device)
-    criterion = nn.CrossEntropyLoss()
+    # Use EfficientNet-B0 Transfer Learning by default
+    model = build_mango_cnn_model(num_classes=len(CLASS_NAMES), model_type='efficientnet').to(device)
+    criterion = FocalLoss(gamma=2.0)
     
     # STAGE 1 OPTIMIZER: Train Classifier Head Only
     stage1_epochs = 5
@@ -89,9 +109,9 @@ def train_and_evaluate():
     for epoch in range(1, EPOCHS + 1):
         # Transition to Stage 2: Unfreeze Backbone & Use Differential Learning Rates
         if epoch == stage1_epochs + 1:
-            print("\n[INFO] 🚀 TRANSITIONING TO STAGE 2: Unfreezing Upper MobileNetV2 Backbone for Fine-Tuning!")
+            print("\n[INFO] 🚀 TRANSITIONING TO STAGE 2: Unfreezing Upper EfficientNet-B0 Backbone for Fine-Tuning!")
             if hasattr(model, 'unfreeze_backbone'):
-                model.unfreeze_backbone(unfreeze_from_block=10)
+                model.unfreeze_backbone(unfreeze_from_block=5)
                 backbone_params = model.get_backbone_params()
                 head_params = model.get_classifier_params()
                 optimizer = optim.Adam([
@@ -152,11 +172,11 @@ def train_and_evaluate():
         print(f"[{stage_label}] Epoch [{epoch:02d}/{EPOCHS:02d}] | Train Loss: {epoch_train_loss:.4f} - Train Acc: {epoch_train_acc:.2f}% | Val Loss: {epoch_val_loss:.4f} - Val Acc: {epoch_val_acc:.2f}%")
 
     training_time = time.time() - start_time
-    print(f"[SUCCESS] MobileNetV2 2-Stage Fine-Tuning Completed in {training_time:.2f} seconds!")
+    print(f"[SUCCESS] EfficientNet-B0 2-Stage Fine-Tuning Completed in {training_time:.2f} seconds!")
     
     # Save Model State Dict Weights
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
-    print(f"[INFO] Saved trained MobileNetV2 model weights to '{MODEL_SAVE_PATH}'.")
+    print(f"[INFO] Saved trained EfficientNet-B0 model weights to '{MODEL_SAVE_PATH}'.")
     
     # Plot Training Performance Curves
     plot_performance_curves(history)
@@ -170,7 +190,7 @@ def plot_performance_curves(history):
     
     ax1.plot(epochs_range, history['train_loss'], label='Train Loss', color='#f59e0b', linewidth=2)
     ax1.plot(epochs_range, history['val_loss'], label='Val Loss', color='#ef4444', linewidth=2, linestyle='--')
-    ax1.set_title('MobileNetV2 Loss Progression')
+    ax1.set_title('EfficientNet-B0 Loss Progression')
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss')
     ax1.legend()
@@ -178,7 +198,7 @@ def plot_performance_curves(history):
     
     ax2.plot(epochs_range, history['train_acc'], label='Train Acc', color='#10b981', linewidth=2)
     ax2.plot(epochs_range, history['val_acc'], label='Val Acc', color='#38bdf8', linewidth=2, linestyle='--')
-    ax2.set_title('MobileNetV2 Accuracy Progression (%)')
+    ax2.set_title('EfficientNet-B0 Accuracy Progression (%)')
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Accuracy (%)')
     ax2.legend()
@@ -207,7 +227,7 @@ def plot_confusion_matrix(model, dataloader, device):
     
     fig, ax = plt.subplots(figsize=(6, 5))
     disp.plot(ax=ax, cmap='YlOrRd', values_format='d')
-    plt.title('MobileNetV2 Model Confusion Matrix')
+    plt.title('EfficientNet-B0 Model Confusion Matrix')
     plt.tight_layout()
     plt.savefig('confusion_matrix.png', dpi=300)
     plt.close()
