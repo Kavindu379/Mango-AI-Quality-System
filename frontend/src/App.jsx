@@ -247,8 +247,9 @@ function App() {
               const i = (y * canvas.width + x) * 4;
               const [h, s, v] = rgbToHsv(data[i], data[i + 1], data[i + 2]);
               // Sync with backend OpenCV masks: OpenCV Hue (0-180) -> JS Hue (0-360)
-              const isRipeYellow = (h >= 28 && h <= 68 && s >= 29 && v >= 24);
-              const isUnripeGreen = (h >= 70 && h <= 184 && s >= 10 && v >= 24);
+              // Extremely tight thresholds for max accuracy (only vivid fruit colors, ignore screen glare)
+              const isRipeYellow = (h >= 30 && h <= 60 && s >= 50 && v >= 40);
+              const isUnripeGreen = (h >= 75 && h <= 140 && s >= 50 && v >= 40);
               
               if (isRipeYellow || isUnripeGreen) {
                 matchedPoints.push({ x, y });
@@ -259,25 +260,28 @@ function App() {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           
           if (matchedPoints.length > 25) {
-            let sumX = 0, sumY = 0;
-            matchedPoints.forEach(p => { sumX += p.x; sumY += p.y; });
-            const avgX = sumX / matchedPoints.length;
-            const avgY = sumY / matchedPoints.length;
+            // Find Median instead of Mean to be completely immune to background noise outliers
+            matchedPoints.sort((a, b) => a.x - b.x);
+            const medianX = matchedPoints[Math.floor(matchedPoints.length / 2)].x;
+            matchedPoints.sort((a, b) => a.y - b.y);
+            const medianY = matchedPoints[Math.floor(matchedPoints.length / 2)].y;
             
             const validPoints = matchedPoints.filter(p => {
-              const dx = p.x - avgX;
-              const dy = p.y - avgY;
-              return (dx * dx + dy * dy) < (canvas.width * canvas.width * 0.16);
+              const dx = p.x - medianX;
+              const dy = p.y - medianY;
+              // Tighter spatial radius based on median center
+              return (dx * dx + dy * dy) < (canvas.width * canvas.width * 0.12);
             });
             
             if (validPoints.length > 18) {
-              let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
-              validPoints.forEach(p => {
-                if (p.x < minX) minX = p.x;
-                if (p.x > maxX) maxX = p.x;
-                if (p.y < minY) minY = p.y;
-                if (p.y > maxY) maxY = p.y;
-              });
+              // Use 5th and 95th percentiles to aggressively tightly bound the core fruit mass
+              validPoints.sort((a, b) => a.x - b.x);
+              const minX = validPoints[Math.floor(validPoints.length * 0.05)].x;
+              const maxX = validPoints[Math.floor(validPoints.length * 0.95)].x;
+              
+              validPoints.sort((a, b) => a.y - b.y);
+              const minY = validPoints[Math.floor(validPoints.length * 0.05)].y;
+              const maxY = validPoints[Math.floor(validPoints.length * 0.95)].y;
               
               const rawW = maxX - minX;
               const rawH = maxY - minY;
