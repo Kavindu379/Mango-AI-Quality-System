@@ -11,8 +11,8 @@ An end-to-end, multi-modal **Artificial Intelligence System** designed for local
 
 ## 🌟 Key Features
 
-* 🧠 **Deep Learning CNN**: 3-block PyTorch Convolutional Neural Network (`MangoCNN`) trained on custom mobile smartphone photos with Data Augmentation (rotations, flips, color jitter) achieving 95.5%+ training accuracy across 3 quality categories (*Grade A Ripe*, *Grade B Unripe*, *Grade C Overripe*).
-* 🏷️ **Directory-Based Supervised Data Labeling**: Custom real-world dataset collection categorized into explicit ground-truth target folders (`Grade_A_Ripe` $\rightarrow$ Class 0, `Grade_B_Unripe` $\rightarrow$ Class 1, `Grade_C_Overripe` $\rightarrow$ Class 2).
+* 🧠 **Deep Learning CNN**: MobileNetV2 Transfer Learning Architecture (`MangoMobileNetV2`) trained on custom mobile smartphone photos with Data Augmentation (rotations, flips, color jitter) achieving 96.84% accuracy across 4 quality categories (*Grade A Ripe*, *Grade B Unripe*, *Grade C Overripe*, *Non_Mango*).
+* 🏷️ **Directory-Based Supervised Data Labeling**: Custom real-world dataset collection categorized into explicit ground-truth target folders (`Grade_A_Ripe` $\rightarrow$ Class 0, `Grade_B_Unripe` $\rightarrow$ Class 1, `Grade_C_Overripe` $\rightarrow$ Class 2, `Non_Mango` $\rightarrow$ Class 3).
 * 🔬 **Computer Vision Feature Extraction**: OpenCV color space transformation (RGB to HSV) calculating real-time ratios for Ripe Yellow %, Unripe Green %, and Dark Decay Spots %.
 * 🛡️ **Rule-Based Expert System**: Knowledge-based inference engine processing quality predictions into explainable vendor recommendations, price discounts, and shelf-life predictions.
 * 📱 **Mobile-First Responsive React UI**: Sleek glassmorphism single-page app featuring dark/light themes, live camera scanning, and an interactive ripeness spectrum indicator bar.
@@ -23,13 +23,33 @@ An end-to-end, multi-modal **Artificial Intelligence System** designed for local
 
 ## 🏗️ System Architecture
 
-```
- 📱 Smartphone / Laptop UI (Port 5000)        🐍 Python Flask REST API (Port 5000)
- ┌────────────────────────────────────────┐  Upload   ┌─────────────────────────────────┐
- │ • Native Camera Snap / Gallery Input   │ ────────► │ • OpenCV Preprocessing (224x224)│
- │ • Ripeness Spectrum Bar                │           │ • PyTorch Model (mango_model)   │
- │ • Live Confidence Gauge & Analytics    │ ◄──────── │ • Rule Engine Pricing Logic     │
- └────────────────────────────────────────┘   JSON    └─────────────────────────────────┘
+```mermaid
+flowchart TD
+    A[Smartphone Camera / Image Upload] --> B[React 18 Mobile-First Frontend]
+    
+    B -- HTTP POST /api/predict --> C[Python Flask REST API]
+    
+    C --> D[YOLOv8 Mango Detection<br/>and ROI Auto-Cropping]
+    
+    D --> E[MobileNetV2 Classification<br/>4 class probabilities]
+    D --> F[OpenCV HSV Analysis<br/>colour and defect percentages]
+    
+    E --> G[OOD Guard and Hybrid AI Fusion]
+    F --> G
+    
+    G --> H[Rule-Based Expert Engine]
+    
+    H --> I[Quality Grade]
+    H --> J[Shelf-Life<br/>Estimation]
+    H --> K[Price and Vendor<br/>Recommendation]
+    
+    I --> L[JSON Response to React Frontend]
+    J --> L
+    K --> L
+    
+    L === M[Result Dashboard]
+    
+    classDef default fill:#ffffff,stroke:#000000,stroke-width:1px,color:#000000,font-weight:600;
 ```
 
 ---
@@ -38,8 +58,8 @@ An end-to-end, multi-modal **Artificial Intelligence System** designed for local
 
 | Metric | Empirical Value | Description |
 | :--- | :--- | :--- |
-| **Model Architecture** | `MangoCNN` | 3-block Conv2D + BatchNorm + MaxPool + Linear Classifier |
-| **Training Accuracy** | **95.50%** | Achieved with Data Augmentation & Cosine Learning Scheduler |
+| **Model Architecture** | `MobileNetV2` | Pre-trained ImageNet backbone + custom 4-class classifier head |
+| **Training Accuracy** | **96.84%** | Achieved with Data Augmentation & Cosine Learning Scheduler |
 | **Loss Function** | **0.1600** | Categorical CrossEntropyLoss |
 | **Execution Speed** | **< 15 ms** | Real-time CPU inference latency |
 
