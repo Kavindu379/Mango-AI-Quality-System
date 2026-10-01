@@ -122,3 +122,17 @@ python server.py
 Open **`http://localhost:5000`** on your laptop or **`http://<YOUR_LAPTOP_IP>:5000`** on your mobile phone to view your live AI Web Application!
 
 ---
+
+## 👥 Project Team & Contributors
+
+| Member | Email | Role |
+| :--- | :--- | :--- |
+| **Kavindu Kavishka** | [rhkkskavishka@gmail.com](mailto:rhkkskavishka@gmail.com) | Lead Developer & Deep Learning Architect |
+| **Oneli Fernando** | [onelifernando2918@gmail.com](mailto:onelifernando2918@gmail.com) | Dataset Engineering & Preprocessing |
+| **Anjalee Vidurusinghe** | [anjaleevidurusinghe@gmail.com](mailto:anjaleevidurusinghe@gmail.com) | Frontend UI/UX & Mobile Web Application |
+| **Umasha Wijewickrama** | [umshsara2019@gmail.com](mailto:umshsara2019@gmail.com) | System Documentation & Quality Assurance |
+
+---
+
+## 📄 License & Acknowledgments
+Developed as part of the Intelligent Systems & Neural Networks research coursework.
