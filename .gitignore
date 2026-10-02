@@ -8,8 +8,14 @@ ENV/
 
 # Datasets & Temp Cached Images
 dataset/
+*.zip
 *.png
 !test_images/*.png
+
+# Machine Learning Models (Do not push large binaries to GitHub!)
+*.pth
+*.pt
+*.onnx
 
 # Node / React
 frontend/node_modules/

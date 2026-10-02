@@ -38,7 +38,7 @@ def get_or_load_models():
 
     if pytorch_model is None and os.path.exists(PYTORCH_MODEL_PATH):
         try:
-            m = build_mango_cnn_model(num_classes=len(CLASS_NAMES))
+            m = build_mango_cnn_model(num_classes=len(CLASS_NAMES), model_type='efficientnet')
             m.load_state_dict(torch.load(PYTORCH_MODEL_PATH, map_location=torch.device('cpu')), strict=False)
             m.eval()
             pytorch_model = m
@@ -177,25 +177,13 @@ def predict_mango():
         dark_spots_pct = color_features.get('dark_spots_percentage', 0.0)
         mango_skin_total = yellow_pct + green_pct
 
-        # Studio Cutout Correction:
-        # Only override MobileNetV2 'Non_Mango' prediction if OpenCV detects vibrant fruit skin (yellow_pct >= 10.0% or green_pct >= 10.0%).
-        # This allows studio cutout mangoes to pass while ensuring human faces/skin, bald heads (0.0% yellow), walls, and non-mango items are strictly rejected as Invalid Objects!
-        if pred_class == 'Non_Mango' and (yellow_pct >= 10.0 or green_pct >= 10.0):
-            is_valid_mango = True
-            if dark_spots_pct >= 15.0:
-                pred_class = 'Grade_C_Overripe'
-            elif green_pct >= 35.0 and yellow_pct < 15.0:
-                pred_class = 'Grade_B_Unripe'
-            else:
-                pred_class = 'Grade_A_Ripe'
-            conf = 0.90
-            class_probs = {k: 0.0 for k in class_probs}
-            class_probs[pred_class] = round(conf * 100, 2)
-            print(f"[STUDIO CUTOUT CORRECTION] Physical Mango Skin ({yellow_pct}% Yellow / {green_pct}% Green) Verified -> Corrected from Non_Mango to {pred_class}!")
+        # Studio Cutout Correction has been removed.
+        # The newly trained PyTorch model is highly robust and correctly identifies Non_Mango objects.
+        # We no longer want to manually override it just because an object is yellow (e.g. a pencil).
 
         # Severe physical rot override (e.g. dark spot decay area >= 15.0%)
         # Only apply this if it's a valid object that actually HAS mango skin, preventing black shirts/shadows from becoming Grade C mangoes.
-        if is_valid_mango and pred_class != 'Non_Mango' and mango_skin_total >= 10.0 and dark_spots_pct >= 15.0:
+        if is_valid_mango and pred_class != 'Non_Mango' and mango_skin_total >= 10.0 and dark_spots_pct >= 25.0:
             pred_class = 'Grade_C_Overripe'
             conf = max(conf, 0.95)
             class_probs = {k: 0.0 for k in class_probs}

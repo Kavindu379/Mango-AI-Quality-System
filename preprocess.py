@@ -57,8 +57,12 @@ def extract_hsv_color_analysis(img_rgb, mask_np=None):
             valid_mask = mask_np.astype(np.uint8)
         total_pixels = max(1, cv2.countNonZero(valid_mask))
     else:
-        # Exclude plain white/light background canvas pixels (R>235, G>235, B>235) from total count
-        valid_mask = (~((img_rgb[:, :, 0] > 235) & (img_rgb[:, :, 1] > 235) & (img_rgb[:, :, 2] > 235))).astype(np.uint8) * 255
+        # Exclude plain white/light background pixels AND pure dark/black background pixels
+        # Black backgrounds (R<15, G<15, B<15) have HSV V<30 which matches the dark-spot filter,
+        # causing them to be falsely counted as mango decay when the fruit is on a dark surface.
+        white_bg = (img_rgb[:, :, 0] > 235) & (img_rgb[:, :, 1] > 235) & (img_rgb[:, :, 2] > 235)
+        black_bg = (img_rgb[:, :, 0] < 15) & (img_rgb[:, :, 1] < 15) & (img_rgb[:, :, 2] < 15)
+        valid_mask = (~(white_bg | black_bg)).astype(np.uint8) * 255
         non_bg_count = cv2.countNonZero(valid_mask)
         total_pixels = non_bg_count if non_bg_count > 100 else (img_rgb.shape[0] * img_rgb.shape[1])
 
@@ -79,8 +83,8 @@ def extract_hsv_color_analysis(img_rgb, mask_np=None):
     green_mask = cv2.bitwise_and(green_mask, green_mask, mask=valid_mask)
     green_pixels = cv2.countNonZero(green_mask)
     
-    # 3. Dark Spot / Decay Spot Mask (Increased Value threshold to catch brown rot)
-    lower_dark = np.array([0, 0, 0])
+    # 3. Dark Spot / Decay Spot Mask (V >= 15 to exclude pure-black background pixels leaking through mask)
+    lower_dark = np.array([0, 0, 15])
     upper_dark = np.array([180, 255, 85])
     dark_mask = cv2.inRange(img_hsv, lower_dark, upper_dark)
     dark_mask = cv2.bitwise_and(dark_mask, dark_mask, mask=valid_mask)
@@ -170,7 +174,7 @@ def validate_is_mango_candidate(color_features, confidence_score=1.0, img_rgb=No
                 # B. Circularity (Citrus / Apple check)
                 if perimeter > 0:
                     circularity = 4 * np.pi * (area / (perimeter * perimeter))
-                    if circularity > 0.88: # Highly spherical circle
+                    if circularity > 0.93: # Highly spherical circle (raised from 0.88 to prevent round mango false rejections)
                         return False, "Failed Check 1: Citrus/Apple spherical circle or indented heart-shaped top/bottom stem detected"
                 
                 # C. Straight Bounding Box Extreme Aspect Ratio (Pencils, sticks)

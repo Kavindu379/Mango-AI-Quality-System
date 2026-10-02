@@ -134,5 +134,4 @@ Open **`http://localhost:5000`** on your laptop or **`http://<YOUR_LAPTOP_IP>:50
 
 ---
 
-## 📄 License & Acknowledgments
-Developed as part of the Intelligent Systems & Neural Networks research coursework.
+
