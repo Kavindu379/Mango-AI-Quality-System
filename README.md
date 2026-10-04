@@ -11,7 +11,7 @@ An end-to-end, multi-modal **Artificial Intelligence System** designed for local
 
 ## 🌟 Key Features
 
-* 🧠 **Deep Learning CNN**: MobileNetV2 Transfer Learning Architecture (`MangoMobileNetV2`) trained on custom mobile smartphone photos with Data Augmentation (rotations, flips, color jitter) achieving 96.84% accuracy across 4 quality categories (*Grade A Ripe*, *Grade B Unripe*, *Grade C Overripe*, *Non_Mango*).
+* 🧠 **Deep Learning CNN**: EfficientNet-B0 Transfer Learning Architecture (`MangoEfficientNetB0`) trained on custom mobile smartphone photos with Data Augmentation (rotations, flips, color jitter) achieving 96.84% accuracy across 4 quality categories (*Grade A Ripe*, *Grade B Unripe*, *Grade C Overripe*, *Non_Mango*).
 * 🏷️ **Directory-Based Supervised Data Labeling**: Custom real-world dataset collection categorized into explicit ground-truth target folders (`Grade_A_Ripe` $\rightarrow$ Class 0, `Grade_B_Unripe` $\rightarrow$ Class 1, `Grade_C_Overripe` $\rightarrow$ Class 2, `Non_Mango` $\rightarrow$ Class 3).
 * 🔬 **Computer Vision Feature Extraction**: OpenCV color space transformation (RGB to HSV) calculating real-time ratios for Ripe Yellow %, Unripe Green %, and Dark Decay Spots %.
 * 🛡️ **Rule-Based Expert System**: Knowledge-based inference engine processing quality predictions into explainable vendor recommendations, price discounts, and shelf-life predictions.
@@ -31,7 +31,7 @@ flowchart TD
     
     C --> D[YOLOv8 Mango Detection<br/>and ROI Auto-Cropping]
     
-    D --> E[MobileNetV2 Classification<br/>4 class probabilities]
+    D --> E[EfficientNet-B0 Classification<br/>4 class probabilities]
     D --> F[OpenCV HSV Analysis<br/>colour and defect percentages]
     
     E --> G[OOD Guard and Hybrid AI Fusion]
@@ -58,7 +58,7 @@ flowchart TD
 
 | Metric | Empirical Value | Description |
 | :--- | :--- | :--- |
-| **Model Architecture** | `MobileNetV2` | Pre-trained ImageNet backbone + custom 4-class classifier head |
+| **Model Architecture** | `EfficientNet-B0` | Pre-trained ImageNet backbone + custom 4-class classifier head |
 | **Training Accuracy** | **96.84%** | Achieved with Data Augmentation & Cosine Learning Scheduler |
 | **Loss Function** | **0.1600** | Categorical CrossEntropyLoss |
 | **Execution Speed** | **< 15 ms** | Real-time CPU inference latency |
