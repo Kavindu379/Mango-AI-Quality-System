@@ -16,23 +16,23 @@ class MangoEfficientNetB0(nn.Module):
         super(MangoEfficientNetB0, self).__init__()
         try:
             weights = models.EfficientNet_B0_Weights.DEFAULT if pretrained else None
-            self.base_model = models.efficientnet_b0(weights=weights)
+            self.backbone = models.efficientnet_b0(weights=weights)
         except Exception:
-            self.base_model = models.efficientnet_b0(pretrained=pretrained)
+            self.backbone = models.efficientnet_b0(pretrained=pretrained)
         
         # Freeze base backbone layers by default for Stage 1
         self.freeze_backbone()
             
         # Replace classifier head for target classes
-        in_features = self.base_model.classifier[1].in_features
-        self.base_model.classifier = nn.Sequential(
+        in_features = self.backbone.classifier[1].in_features
+        self.backbone.classifier = nn.Sequential(
             nn.Dropout(0.3),
             nn.Linear(in_features, num_classes)
         )
 
     def freeze_backbone(self):
         """Freezes all backbone feature extraction layers for Stage 1 training."""
-        for param in self.base_model.features.parameters():
+        for param in self.backbone.features.parameters():
             param.requires_grad = False
 
     def unfreeze_backbone(self, unfreeze_from_block=5):
@@ -40,23 +40,23 @@ class MangoEfficientNetB0(nn.Module):
         Unfreezes upper feature blocks of EfficientNet-B0 backbone for Stage 2 Fine-Tuning.
         EfficientNet-B0 features has 9 sequential blocks (0..8).
         """
-        total_blocks = len(self.base_model.features)
+        total_blocks = len(self.backbone.features)
         print(f"[INFO] Unfreezing EfficientNet-B0 backbone layers from block {unfreeze_from_block} to {total_blocks - 1}...")
-        for i, block in enumerate(self.base_model.features):
+        for i, block in enumerate(self.backbone.features):
             if i >= unfreeze_from_block:
                 for param in block.parameters():
                     param.requires_grad = True
 
     def get_backbone_params(self):
         """Returns parameters of the backbone feature extractor that require gradients."""
-        return [p for p in self.base_model.features.parameters() if p.requires_grad]
+        return [p for p in self.backbone.features.parameters() if p.requires_grad]
 
     def get_classifier_params(self):
         """Returns parameters of the classifier head."""
-        return [p for p in self.base_model.classifier.parameters() if p.requires_grad]
+        return [p for p in self.backbone.classifier.parameters() if p.requires_grad]
 
     def forward(self, x):
-        return self.base_model(x)
+        return self.backbone(x)
 
 class MangoMobileNetV2(nn.Module):
     """MobileNetV2 Transfer Learning Architecture leveraging 1.4M ImageNet Pre-trained Feature Weights."""

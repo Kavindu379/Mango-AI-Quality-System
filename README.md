@@ -100,7 +100,7 @@ Mango-AI-Quality-System/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/Mango-AI-Quality-System.git
+git clone https://github.com/Kavindu379/Mango-AI-Quality-System.git
 cd Mango-AI-Quality-System
 ```
 
