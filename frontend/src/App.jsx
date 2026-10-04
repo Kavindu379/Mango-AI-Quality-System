@@ -471,6 +471,15 @@ function App() {
         setLoading(false);
         if (data.success) {
           setResult(data);
+        } else {
+          setResult({
+            is_valid_mango: false,
+            rejection_reason: data.message || "Detection failed.",
+            prediction: { class_code: 'Non_Mango', class_probabilities: {}, confidence_percentage: 0 },
+            computer_vision_features: {},
+            rule_engine: { final_price_per_kg: 0, price_adjustment: 0, vendor_recommendation: "", shelf_life_days: 0 },
+            hybrid_analysis: { hybrid_probabilities: {}, hybrid_prediction: 'Non_Mango', hybrid_confidence: 0, uncertain: false }
+          });
         }
       })
       .catch(err => {
@@ -992,20 +1001,26 @@ function App() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
             <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
-              <div className="feature-label">Training Accuracy</div>
-              <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>95.50%</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Epoch 15 Performance</div>
+              <div className="feature-label">Test Accuracy</div>
+              <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>91.43%</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Untouched Test Set</div>
             </div>
             <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
-              <div className="feature-label">Final Loss Value</div>
-              <div className="feature-value" style={{ color: 'var(--amber-primary)', fontSize: '1.75rem' }}>0.1600</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>CrossEntropyLoss</div>
+              <div className="feature-label">Macro F1 Score</div>
+              <div className="feature-value" style={{ color: 'var(--amber-primary)', fontSize: '1.75rem' }}>0.8591</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Mango-only Accuracy: 91.18%</div>
             </div>
             <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
               <div className="feature-label">Model Architecture</div>
-              <div className="feature-value" style={{ color: '#38bdf8', fontSize: '1.2rem' }}>MobileNetV2</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>PyTorch State Dict</div>
+              <div className="feature-value" style={{ color: '#38bdf8', fontSize: '1.2rem' }}>EfficientNet-B0</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Production Checkpoint</div>
             </div>
+          </div>
+          <div style={{ padding: '1rem', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '0.75rem', marginBottom: '1.5rem' }}>
+            <h4 style={{ color: '#38bdf8', fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.4rem' }}>Hybrid Fusion Architecture</h4>
+            <p style={{ color: 'var(--text-main)', fontSize: '0.8rem', lineHeight: 1.5 }}>
+              Hybrid fusion did <strong>not</strong> measurably improve overall test accuracy compared with the pure CNN model. It is deployed as a <strong>supporting interpretability and safety layer</strong> (e.g., overriding severe rot) rather than an accuracy enhancement mechanism.
+            </p>
           </div>
 
           <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
@@ -1023,15 +1038,15 @@ function App() {
             <tbody>
               <tr>
                 <td>Input Layer</td>
-                <td>Image Standardizer</td>
+                <td>ImageNet Preprocessing</td>
                 <td>(B, 3, 224, 224)</td>
                 <td>Standardizes RGB resolution & normalizes pixels</td>
               </tr>
               <tr>
                 <td>Base Backbone</td>
-                <td>MobileNetV2 Features (ImageNet Weights)</td>
+                <td>EfficientNet-B0 Features (ImageNet Weights)</td>
                 <td>(B, 1280, 7, 7)</td>
-                <td>Depthwise Separable Convolutions & Bottlenecks</td>
+                <td>MBConv Blocks & Squeeze-and-Excitation</td>
               </tr>
               <tr>
                 <td>Classifier Head</td>
@@ -1108,7 +1123,7 @@ function App() {
       <footer className="ai-concepts-footer">
         <div className="concept-item">
           <h4>1. Deep Learning CNN</h4>
-          <p>4-class PyTorch Neural Network (`mango_model.pth`) for spatial feature classification & OOD detection.</p>
+          <p>EfficientNet-B0 4-class classifier (`mango_model.pth`) for mango quality classification and Non-Mango detection.</p>
         </div>
         <div className="concept-item">
           <h4>2. Computer Vision (OpenCV)</h4>
