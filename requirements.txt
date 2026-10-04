@@ -7,3 +7,5 @@ numpy>=1.22.0
 pillow>=9.0.0
 matplotlib>=3.5.0
 scikit-learn>=1.0.0
+
+ultralytics>=8.0.0

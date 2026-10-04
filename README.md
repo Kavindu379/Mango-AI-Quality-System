@@ -94,8 +94,6 @@ Mango-AI-Quality-System/
 ├── best_seg.pt                         # YOLOv8 Segmentation Weights (Excluded from git)
 ├── mango_model.pth                     # Trained PyTorch Model Weights Tensor (Excluded from git)
 ├── requirements.txt                    # Python Dependencies
-├── docs/                               # Assignment Proposals & Documentation
-│   └── Project_Proposal_CS22032.md
 ├── test_images/                        # Sample Demo Test Images
 └── frontend/                           # React + Vite Web Application
     ├── src/
@@ -121,12 +119,18 @@ cd Mango-AI-Quality-System
 pip install -r requirements.txt
 ```
 
-### 3. (Optional) Train the PyTorch Model
+### 3. Build the Frontend
 ```bash
-python train.py
+cd frontend
+npm install
+npm run build
+cd ..
 ```
 
-### 4. Launch the Unified Web Application
+### 4. Provide Trained Model Weights
+Place the trained binary model weights (`mango_model.pth` and `best_seg.pt`) in the root directory before running the system.
+
+### 5. Launch the Unified Web Application
 ```bash
 python server.py
 ```

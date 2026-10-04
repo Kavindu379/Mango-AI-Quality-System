@@ -25,3 +25,9 @@ frontend/dist/
 # IDE
 .vscode/
 .idea/
+
+Mango-Roboflow-Dataset/
+dataset_cropped/
+validation_features_cache.json
+temp_colab_crop.jpg
+temp_prod_crop.jpg
