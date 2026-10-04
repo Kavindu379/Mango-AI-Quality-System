@@ -5,7 +5,7 @@ from torchvision import transforms
 
 def preprocess_image_pytorch(image_pil):
     """
-    Standardizes image to 224x224 RGB tensor for PyTorch MobileNetV2 inference.
+    Standardizes image to 224x224 RGB tensor for PyTorch EfficientNet-B0 inference.
     """
     img_rgb = np.array(image_pil)
     

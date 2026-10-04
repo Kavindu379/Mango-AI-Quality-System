@@ -145,7 +145,7 @@ def predict_mango():
         # 2. Extract OpenCV HSV features on the cropped mango region
         color_features = extract_hsv_color_analysis(cropped_mango_rgb, mask_np=mango_mask_np)
 
-        # 3. MobileNetV2 Transfer Learning Classification (Primary Classifier - 96.84% Accuracy)
+        # 3. EfficientNet-B0 Transfer Learning Classification (Primary Classifier - Final Validated Test Accuracy 91.43%)
         pred_class = 'Grade_A_Ripe'
         conf = 0.95
         class_probs = {}
@@ -176,7 +176,7 @@ def predict_mango():
                     CLASS_NAMES[i]: round(float(probabilities[i]) * 100, 2)
                     for i in range(min(len(CLASS_NAMES), len(probabilities)))
                 }
-            print(f"[CLASSIFICATION] MobileNetV2 Prediction: {pred_class} ({conf*100:.2f}%) Probs: {class_probs}")
+            print(f"[CLASSIFICATION] EfficientNet-B0 Prediction: {pred_class} ({conf*100:.2f}%) Probs: {class_probs}")
 
         # 4. Out-Of-Distribution (OOD) Guard & Color Checks
         is_valid_mango, validation_msg = validate_is_mango_candidate(
@@ -195,7 +195,7 @@ def predict_mango():
         # -----------------------------
 
         # Studio Cutout Correction has been removed.
-        # The newly trained PyTorch model is highly robust and correctly identifies Non_Mango objects.
+        # The newly trained PyTorch model is accurate and correctly identifies Non_Mango objects.
         # We no longer want to manually override it just because an object is yellow (e.g. a pencil).
 
         # Severe physical rot override (e.g. dark spot decay area >= 15.0%)

@@ -142,7 +142,7 @@ class DeepMangoCNN(nn.Module):
 def build_mango_cnn_model(num_classes=4, model_type='efficientnet'):
     """
     Factory function returning model instance.
-    - model_type='efficientnet': EfficientNet-B0 Transfer Learning (Recommended State-of-the-Art!)
+    - model_type='efficientnet': EfficientNet-B0 Transfer Learning (Production Model)
     - model_type='mobilenet': MobileNetV2 Transfer Learning
     - model_type='deep_cnn': Custom 4-Block Deep CNN
     """

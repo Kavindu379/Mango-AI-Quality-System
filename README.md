@@ -11,7 +11,7 @@ An end-to-end, multi-modal **Artificial Intelligence System** designed for local
 
 ## 🌟 Key Features
 
-* 🧠 **Deep Learning CNN**: EfficientNet-B0 Transfer Learning Architecture (`MangoEfficientNetB0`) trained on custom mobile smartphone photos with Data Augmentation (rotations, flips, color jitter) achieving 96.84% accuracy across 4 quality categories (*Grade A Ripe*, *Grade B Unripe*, *Grade C Overripe*, *Non_Mango*).
+* 🧠 **Deep Learning CNN**: EfficientNet-B0 Transfer Learning Architecture (`MangoEfficientNetB0`) trained on custom mobile smartphone photos with Data Augmentation (rotations, flips, color jitter).
 * 🏷️ **Directory-Based Supervised Data Labeling**: Custom real-world dataset collection categorized into explicit ground-truth target folders (`Grade_A_Ripe` $\rightarrow$ Class 0, `Grade_B_Unripe` $\rightarrow$ Class 1, `Grade_C_Overripe` $\rightarrow$ Class 2, `Non_Mango` $\rightarrow$ Class 3).
 * 🔬 **Computer Vision Feature Extraction**: OpenCV color space transformation (RGB to HSV) calculating real-time ratios for Ripe Yellow %, Unripe Green %, and Dark Decay Spots %.
 * 🛡️ **Rule-Based Expert System**: Knowledge-based inference engine processing quality predictions into explainable vendor recommendations, price discounts, and shelf-life predictions.
@@ -56,17 +56,26 @@ flowchart TD
 
 ## 📊 Empirical Performance & Evaluation
 
-| Metric | Empirical Value | Description |
-| :--- | :--- | :--- |
-| **Model Architecture** | `EfficientNet-B0` | Pre-trained ImageNet backbone + custom 4-class classifier head |
-| **Training Accuracy** | **96.84%** | Achieved with Data Augmentation & Cosine Learning Scheduler |
-| **Loss Function** | **0.1600** | Categorical CrossEntropyLoss |
-| **Execution Speed** | **< 15 ms** | Real-time CPU inference latency |
+**Model Architecture**: 
+EfficientNet-B0 transfer learning with a 4-class classifier.
 
-### Model Evaluation Artifacts:
-- **Weights File**: `mango_model.pth`
-- **Performance Curves**: `training_performance.png`
-- **Confusion Matrix Heatmap**: `confusion_matrix.png`
+**Final Held-Out Test Results**:
+- **Test Accuracy**: 91.43%
+- **Mango-only Accuracy**: 91.18%
+- **Macro F1**: 0.8591
+- **Test Set Size**: 70 images
+
+**Classes**:
+- Grade A — Ripe
+- Grade B — Unripe
+- Grade C — Overripe
+- Non-Mango
+
+**Hybrid AI Analysis**: 
+The hybrid ripeness layer combines CNN predictions with HSV colour and defect evidence. On the untouched test set, it produced the same overall accuracy as the pure CNN model. Therefore, it is used as a supporting interpretability/safety layer rather than being claimed as an accuracy-improvement technique.
+
+**System Limitations**: 
+The production pipeline depends on YOLO mango detection/cropping. Difficult images such as extreme angles, blur, or images where the detector cannot confidently locate the mango may result in `Unable_To_Detect`.
 
 ---
 
@@ -82,7 +91,8 @@ Mango-AI-Quality-System/
 ├── train.py                            # PyTorch Model Training & Evaluation Script
 ├── download_real_mango_dataset.py      # Real Photographic Dataset Downloader
 ├── Mango_Quality_CNN_Training.ipynb    # Google Colab GPU Training Notebook
-├── mango_model.pth                     # Trained PyTorch Model Weights Tensor
+├── best_seg.pt                         # YOLOv8 Segmentation Weights (Excluded from git)
+├── mango_model.pth                     # Trained PyTorch Model Weights Tensor (Excluded from git)
 ├── requirements.txt                    # Python Dependencies
 ├── docs/                               # Assignment Proposals & Documentation
 │   └── Project_Proposal_CS22032.md
@@ -95,6 +105,8 @@ Mango-AI-Quality-System/
 ```
 
 ---
+
+> **Note on Model Weights**: Trained binary model weights (`.pth`, `.pt`, `.onnx`) are excluded from this GitHub repository via `.gitignore` due to large file sizes and repository management best practices. They must be downloaded or trained separately before running the system.
 
 ## 🚀 Quick Start Guide
 
