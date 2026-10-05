@@ -1,4 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import imgA1 from '../../dataset/train/Grade_A_Ripe/alternaria_001.jpg';
+import imgA2 from '../../dataset/train/Grade_A_Ripe/alternaria_002.jpg';
+import imgB1 from '../../dataset/train/Grade_B_Unripe/healthy_001.jpg';
+import imgB2 from '../../dataset/train/Grade_B_Unripe/healthy_002.jpg';
+import imgC1 from '../../dataset/train/Grade_C_Overripe/anthracnose_014.jpg';
+import imgC2 from '../../dataset/train/Grade_C_Overripe/anthracnose_015.jpg';
+import imgN1 from '../../dataset/train/Non_Mango/non_mango_wiki_1.jpg';
+import imgN2 from '../../dataset/train/Non_Mango/non_mango_wiki_12.png';
 import { 
   Scan, 
   Cpu, 
@@ -17,7 +25,9 @@ import {
   Moon,
   X,
   AlertTriangle,
-  Target
+  Target,
+  Database,
+  ImageIcon
 } from 'lucide-react';
 
 const API_BASE = `http://${window.location.hostname}:5000/api`;
@@ -109,19 +119,103 @@ function compressImageBeforeUpload(file, maxWidth = 1024, maxHeight = 1024, qual
   });
 }
 
+const DB_NAME = 'MangoAIDemoDB';
+const STORE_NAME = 'customImages';
+
+const initDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const saveCustomImageDB = async (idx, file) => {
+  try {
+    const db = await initDB();
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    store.put({ file, filename: file.name }, idx);
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch (e) {
+    console.error("IndexedDB Save Error:", e);
+  }
+};
+
+const removeCustomImageDB = async (idx) => {
+  try {
+    const db = await initDB();
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    store.delete(idx);
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch (e) {
+    console.error("IndexedDB Remove Error:", e);
+  }
+};
+
+const loadCustomImagesDB = async () => {
+  try {
+    const db = await initDB();
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+    const keysRequest = store.getAllKeys();
+    
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => {
+        const results = {};
+        keysRequest.result.forEach((key, i) => {
+          results[key] = request.result[i];
+        });
+        resolve(results);
+      };
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch (e) {
+    console.error("IndexedDB Load Error:", e);
+    return {};
+  }
+};
+
 function App() {
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
   const [activeTab, setActiveTab] = useState('scanner');
   const [currency, setCurrency] = useState('LKR');
   const [basePrice, setBasePrice] = useState(300);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [sampleName, setSampleName] = useState('sample_ripe_mango.jpg');
+  const [sampleName, setSampleName] = useState(null);
   const [sampleList, setSampleList] = useState([]);
-  const [previewUrl, setPreviewUrl] = useState(`${API_BASE}/samples/sample_ripe_mango.jpg`);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [backendOnline, setBackendOnline] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  const [explorerSelectedIndex, setExplorerSelectedIndex] = useState(0);
+  const [explorerStatus, setExplorerStatus] = useState('');
+  const [customExplorerSamples, setCustomExplorerSamples] = useState({});
+  const fileInputRef = useRef(null);
+
+  // Presentation State for CNN Metrics Tab
+  const [selectedMetric, setSelectedMetric] = useState(null);
+  const [selectedLayer, setSelectedLayer] = useState(null);
+  const [selectedHybrid, setSelectedHybrid] = useState(null);
+
+  // Presentation State for Rules Matrix Tab
+  const [simulatorBasePrice, setSimulatorBasePrice] = useState(300);
+  const [selectedRuleGrade, setSelectedRuleGrade] = useState(null);
 
   // Bounding Box Overlay Ref & Aspect Dimensions
   const previewImgRef = useRef(null);
@@ -151,7 +245,7 @@ function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Fetch Samples & Backend Health
+  // Fetch Samples & Backend Health & Restore Custom Images
   useEffect(() => {
     fetch(`${API_BASE}/health`)
       .then(res => res.json())
@@ -163,14 +257,24 @@ function App() {
       .then(data => {
         if (data.samples && data.samples.length > 0) {
           setSampleList(data.samples);
-          setSampleName(data.samples[0].filename);
-          setPreviewUrl(`${API_BASE}/samples/${data.samples[0].filename}`);
-          handleEvaluate(null, data.samples[0].filename, 300);
-        } else {
-          handleEvaluate(null, 'sample_ripe_mango.jpg', 300);
         }
       })
-      .catch(() => handleEvaluate(null, 'sample_ripe_mango.jpg', 300));
+      .catch(() => console.error("Could not fetch samples"));
+
+    loadCustomImagesDB().then(savedSamples => {
+      const restored = {};
+      Object.keys(savedSamples).forEach(idx => {
+        const item = savedSamples[idx];
+        if (item && item.file) {
+          restored[idx] = {
+            file: item.file,
+            filename: item.filename,
+            url: URL.createObjectURL(item.file)
+          };
+        }
+      });
+      setCustomExplorerSamples(restored);
+    });
   }, []);
 
   // Update Image Dimensions for SVG Overlay
@@ -536,7 +640,9 @@ function App() {
 
   const handlePriceChange = (newPrice) => {
     setBasePrice(newPrice);
-    handleEvaluate(selectedFile, sampleName, newPrice);
+    if (result) {
+      handleEvaluate(selectedFile, sampleName, newPrice);
+    }
   };
 
   const getSpectrumMarkerPosition = () => {
@@ -564,6 +670,58 @@ function App() {
   };
 
   const currSymbol = CURRENCIES[currency]?.symbol || 'Rs.';
+
+  const fallbackSamples = [
+    { filename: '1.jpeg' },
+    { filename: '2.jpeg' },
+    { filename: '3.jpeg' },
+    { filename: '4.jpg' }
+  ];
+  const activeSamples = sampleList.length > 0 ? sampleList : fallbackSamples;
+  const currentExplorerSample = activeSamples[explorerSelectedIndex] || activeSamples[0];
+  const customSample = customExplorerSamples[explorerSelectedIndex];
+
+  const handleUseExplorerSample = (filename) => {
+    setActiveTab('scanner');
+    if (customSample) {
+      processUploadedFile(customSample.file);
+    } else {
+      handleSelectSample(filename);
+    }
+    setExplorerStatus('Sample loaded into AI Scanner');
+    setTimeout(() => setExplorerStatus(''), 3000);
+  };
+
+  const handleCustomSampleUpload = async (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const objectUrl = URL.createObjectURL(file);
+      
+      setCustomExplorerSamples(prev => ({
+        ...prev,
+        [explorerSelectedIndex]: {
+          file: file,
+          url: objectUrl,
+          filename: file.name
+        }
+      }));
+      
+      await saveCustomImageDB(explorerSelectedIndex, file);
+    }
+  };
+
+  const handleResetCustomSample = async () => {
+    setCustomExplorerSamples(prev => {
+      const updated = { ...prev };
+      if (updated[explorerSelectedIndex]) {
+        URL.revokeObjectURL(updated[explorerSelectedIndex].url);
+        delete updated[explorerSelectedIndex];
+      }
+      return updated;
+    });
+    
+    await removeCustomImageDB(explorerSelectedIndex);
+  };
 
   return (
     <div className="app-container">
@@ -664,6 +822,11 @@ function App() {
         <button className={`tab-btn ${activeTab === 'scanner' ? 'active' : ''}`} onClick={() => setActiveTab('scanner')}>
           <Scan size={18} />
           <span>AI Scanner</span>
+        </button>
+
+        <button className={`tab-btn ${activeTab === 'dataset' ? 'active' : ''}`} onClick={() => setActiveTab('dataset')}>
+          <Database size={18} />
+          <span>Dataset</span>
         </button>
 
         <button className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
@@ -771,11 +934,20 @@ function App() {
                 {sampleList.length > 0 ? (
                   sampleList.map((item, idx) => {
                     const info = getSampleDisplayInfo(item.filename, idx);
+                    const isCustom = customExplorerSamples[idx];
+                    const isActive = isCustom ? (selectedFile === isCustom.file) : (sampleName === item.filename);
+                    
                     return (
                       <button
                         key={idx}
-                        className={`preset-pill ${sampleName === item.filename ? 'active' : ''}`}
-                        onClick={() => handleSelectSample(item.filename)}
+                        className={`preset-pill ${isActive ? 'active' : ''}`}
+                        onClick={() => {
+                          if (isCustom) {
+                            processUploadedFile(isCustom.file);
+                          } else {
+                            handleSelectSample(item.filename);
+                          }
+                        }}
                       >
                         <span style={{ fontSize: '1.2rem' }}>{info.icon}</span>
                         <span>{info.title}</span>
@@ -987,6 +1159,245 @@ function App() {
         </div>
       )}
 
+      {/* TAB 1.5: DATASET */}
+      {activeTab === 'dataset' && (
+        <div className="pro-card">
+          <div className="card-header">
+            <div className="card-title-group">
+              <div className="card-icon-wrap">
+                <Database size={18} />
+              </div>
+              <h2 className="card-title-text">Dataset & Classes</h2>
+            </div>
+          </div>
+
+          <div style={{ padding: '1rem', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '0.75rem', marginBottom: '1.5rem' }}>
+            <h4 style={{ color: '#38bdf8', fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.4rem' }}>Dataset Role</h4>
+            <p style={{ color: 'var(--text-main)', fontSize: '0.8rem', lineHeight: 1.5 }}>
+              The dataset provides the labelled image examples used to train and validate the mango quality and ripeness classification model.
+            </p>
+          </div>
+
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
+            Classification Classes
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className="feature-box" style={{ padding: '1rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🥭</div>
+              <div className="feature-label" style={{ color: 'var(--emerald-primary)' }}>Grade A</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', marginTop: '0.25rem' }}>Ripe/Fresh</div>
+            </div>
+            <div className="feature-box" style={{ padding: '1rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍏</div>
+              <div className="feature-label" style={{ color: 'var(--amber-primary)' }}>Grade B</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', marginTop: '0.25rem' }}>Unripe/Green</div>
+            </div>
+            <div className="feature-box" style={{ padding: '1rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🍂</div>
+              <div className="feature-label" style={{ color: 'var(--rose-primary)' }}>Grade C</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', marginTop: '0.25rem' }}>Overripe/Damaged</div>
+            </div>
+            <div className="feature-box" style={{ padding: '1rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🚫</div>
+              <div className="feature-label" style={{ color: 'var(--text-muted)' }}>Non-Mango</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', marginTop: '0.25rem' }}>Invalid Object</div>
+            </div>
+          </div>
+
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
+            Dataset Overview
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
+              <div className="feature-label">Training Images</div>
+              <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>546</div>
+            </div>
+            <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
+              <div className="feature-label">Validation Images</div>
+              <div className="feature-value" style={{ color: 'var(--amber-primary)', fontSize: '1.75rem' }}>136</div>
+            </div>
+            <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
+              <div className="feature-label">Total Training + Validation</div>
+              <div className="feature-value" style={{ color: '#38bdf8', fontSize: '1.75rem' }}>682</div>
+            </div>
+            <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
+              <div className="feature-label">Final Evaluation Set</div>
+              <div className="feature-value" style={{ color: 'var(--rose-primary)', fontSize: '1.75rem' }}>70</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                Used for reported model evaluation
+              </div>
+            </div>
+          </div>
+
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
+            Dataset Preparation Workflow
+          </h3>
+          <div style={{ padding: '1.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '0.75rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ padding: '0.5rem 1rem', background: 'var(--bg-card-inner)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)', fontWeight: 600 }}>Raw Images</div>
+              <div style={{ color: 'var(--amber-primary)' }}>↓</div>
+              <div style={{ padding: '0.5rem 1rem', background: 'var(--bg-card-inner)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)', fontWeight: 600 }}>Dataset Preparation</div>
+              <div style={{ color: 'var(--amber-primary)' }}>↓</div>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <div style={{ padding: '0.5rem 1rem', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--emerald-primary)', borderRadius: '0.5rem', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 600 }}>Training — 546 Images</div>
+                <div style={{ padding: '0.5rem 1rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--amber-primary)', borderRadius: '0.5rem', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>Validation — 136 Images</div>
+                <div style={{ padding: '0.5rem 1rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--rose-primary)', borderRadius: '0.5rem', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600 }}>Final Evaluation — 70 Images</div>
+              </div>
+            </div>
+          </div>
+
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
+            Dataset Samples
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <img src={imgA1} alt="Grade A" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade A (Ripe)</div>
+            </div>
+            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <img src={imgA2} alt="Grade A" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade A (Ripe)</div>
+            </div>
+            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <img src={imgB1} alt="Grade B" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade B (Unripe)</div>
+            </div>
+            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <img src={imgB2} alt="Grade B" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade B (Unripe)</div>
+            </div>
+            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <img src={imgC1} alt="Grade C" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade C (Overripe)</div>
+            </div>
+            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <img src={imgC2} alt="Grade C" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade C (Overripe)</div>
+            </div>
+            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <img src={imgN1} alt="Non-Mango" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Non-Mango</div>
+            </div>
+            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <img src={imgN2} alt="Non-Mango" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Non-Mango</div>
+            </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
+
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
+            Test Sample Explorer
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+            Interactively preview curated test/demo images.
+          </p>
+          <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+              {activeSamples.map((s, idx) => (
+                <button
+                  key={s.filename}
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setExplorerSelectedIndex(idx); }}
+                  style={{
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: '0.5rem',
+                    border: '1px solid',
+                    borderColor: explorerSelectedIndex === idx ? 'var(--amber-primary)' : 'var(--border-subtle)',
+                    background: explorerSelectedIndex === idx ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg-card-inner)',
+                    color: explorerSelectedIndex === idx ? 'var(--amber-primary)' : 'var(--text-main)',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Sample {idx + 1}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <img 
+                key={customSample ? customSample.filename : currentExplorerSample.filename}
+                src={customSample ? customSample.url : `${API_BASE}/samples/${currentExplorerSample.filename}`} 
+                alt="Selected Sample" 
+                style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', objectFit: 'contain', backgroundColor: '#000' }} 
+              />
+              <div style={{ marginTop: '0.5rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                {customSample ? customSample.filename : currentExplorerSample.filename}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {customSample ? 'Custom User Upload' : getSampleDisplayInfo(currentExplorerSample.filename).title}
+              </div>
+              {customSample && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--rose-primary)', fontWeight: 700 }}>
+                  <AlertTriangle size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                  Custom demo image — not part of the evaluation dataset
+                </div>
+              )}
+              
+              <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  style={{ display: 'none' }} 
+                  ref={fileInputRef} 
+                  onChange={handleCustomSampleUpload} 
+                />
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); fileInputRef.current.click(); }}
+                  style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--amber-primary)', color: 'var(--amber-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Upload size={14} /> Change Image
+                </button>
+                {customSample && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); handleResetCustomSample(); }}
+                    style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--rose-primary)', color: 'var(--rose-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <X size={14} /> Restore Original
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setExplorerSelectedIndex((explorerSelectedIndex - 1 + activeSamples.length) % activeSamples.length); }}
+                  style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', background: 'var(--bg-card-inner)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', cursor: 'pointer' }}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setExplorerSelectedIndex((explorerSelectedIndex + 1) % activeSamples.length); }}
+                  style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', background: 'var(--bg-card-inner)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', cursor: 'pointer' }}
+                >
+                  Next
+                </button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {explorerStatus && <span style={{ color: 'var(--emerald-primary)', fontSize: '0.8rem', fontWeight: 600 }}>{explorerStatus}</span>}
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); handleUseExplorerSample(currentExplorerSample.filename); }}
+                  style={{ padding: '0.5rem 1.5rem', borderRadius: '0.5rem', background: 'var(--amber-primary)', color: '#000', border: 'none', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 10px rgba(245, 158, 11, 0.3)' }}
+                >
+                  Use in AI Scanner
+                </button>
+              </div>
+            </div>
+            
+            <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              Selected sample: {customSample ? customSample.filename : currentExplorerSample.filename}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TAB 2: MODEL METRICS */}
       {activeTab === 'analytics' && (
         <div className="pro-card">
@@ -1000,33 +1411,79 @@ function App() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-            <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
+            <div 
+              className="feature-box" 
+              style={{ padding: '1rem', textAlign: 'left', cursor: 'pointer', border: selectedMetric === 'test' ? '1px solid var(--amber-primary)' : '1px solid var(--border-subtle)', background: selectedMetric === 'test' ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg-card-inner)' }}
+              onClick={() => setSelectedMetric('test')}
+            >
               <div className="feature-label">Test Accuracy</div>
               <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>91.43%</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Untouched Test Set</div>
             </div>
-            <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
+            <div 
+              className="feature-box" 
+              style={{ padding: '1rem', textAlign: 'left', cursor: 'pointer', border: selectedMetric === 'mango' ? '1px solid var(--amber-primary)' : '1px solid var(--border-subtle)', background: selectedMetric === 'mango' ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg-card-inner)' }}
+              onClick={() => setSelectedMetric('mango')}
+            >
+              <div className="feature-label">Mango-only Accuracy</div>
+              <div className="feature-value" style={{ color: 'var(--emerald-primary)', fontSize: '1.75rem' }}>91.18%</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Mango classes only</div>
+            </div>
+            <div 
+              className="feature-box" 
+              style={{ padding: '1rem', textAlign: 'left', cursor: 'pointer', border: selectedMetric === 'f1' ? '1px solid var(--amber-primary)' : '1px solid var(--border-subtle)', background: selectedMetric === 'f1' ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg-card-inner)' }}
+              onClick={() => setSelectedMetric('f1')}
+            >
               <div className="feature-label">Macro F1 Score</div>
               <div className="feature-value" style={{ color: 'var(--amber-primary)', fontSize: '1.75rem' }}>0.8591</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Mango-only Accuracy: 91.18%</div>
-            </div>
-            <div className="feature-box" style={{ padding: '1rem', textAlign: 'left' }}>
-              <div className="feature-label">Model Architecture</div>
-              <div className="feature-value" style={{ color: '#38bdf8', fontSize: '1.2rem' }}>EfficientNet-B0</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Production Checkpoint</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Across 4 target classes</div>
             </div>
           </div>
-          <div style={{ padding: '1rem', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '0.75rem', marginBottom: '1.5rem' }}>
-            <h4 style={{ color: '#38bdf8', fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.4rem' }}>Hybrid Fusion Architecture</h4>
-            <p style={{ color: 'var(--text-main)', fontSize: '0.8rem', lineHeight: 1.5 }}>
-              Hybrid fusion did <strong>not</strong> measurably improve overall test accuracy compared with the pure CNN model. It is deployed as a <strong>supporting interpretability and safety layer</strong> (e.g., overriding severe rot) rather than an accuracy enhancement mechanism.
-            </p>
+
+          {selectedMetric && (
+            <div style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '0.75rem', marginBottom: '1.5rem' }}>
+              <h4 style={{ color: 'var(--amber-primary)', fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+                {selectedMetric === 'test' ? 'Test Accuracy' : selectedMetric === 'mango' ? 'Mango-only Accuracy' : 'Macro F1-Score'}
+              </h4>
+              <p style={{ color: 'var(--text-main)', fontSize: '0.8rem', lineHeight: 1.5, margin: 0 }}>
+                {selectedMetric === 'test' && 'Overall accuracy measured on the untouched 70-image test set.'}
+                {selectedMetric === 'mango' && 'Accuracy calculated using the mango classes only.'}
+                {selectedMetric === 'f1' && 'Macro F1 calculated across the four target classes.'}
+              </p>
+            </div>
+          )}
+
+          <div style={{ padding: '1rem', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '0.75rem', marginBottom: '1.5rem' }}>
+            <h4 style={{ color: 'var(--amber-primary)', fontSize: '0.9rem', fontWeight: 700, marginBottom: '1rem' }}>Hybrid Comparison</h4>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: selectedHybrid ? '1rem' : '0' }}>
+              <div 
+                style={{ flex: 1, padding: '1rem', textAlign: 'center', cursor: 'pointer', borderRadius: '0.5rem', border: selectedHybrid === 'cnn' ? '1px solid #38bdf8' : '1px solid var(--border-subtle)', background: selectedHybrid === 'cnn' ? 'rgba(56, 189, 248, 0.1)' : 'var(--bg-card-inner)' }}
+                onClick={() => setSelectedHybrid('cnn')}
+              >
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Pure CNN</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#38bdf8' }}>91.43%</div>
+              </div>
+              <div 
+                style={{ flex: 1, padding: '1rem', textAlign: 'center', cursor: 'pointer', borderRadius: '0.5rem', border: selectedHybrid === 'hybrid' ? '1px solid #38bdf8' : '1px solid var(--border-subtle)', background: selectedHybrid === 'hybrid' ? 'rgba(56, 189, 248, 0.1)' : 'var(--bg-card-inner)' }}
+                onClick={() => setSelectedHybrid('hybrid')}
+              >
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Hybrid</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#38bdf8' }}>91.43%</div>
+              </div>
+            </div>
+            {selectedHybrid && (
+              <div style={{ padding: '0.75rem', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '0.5rem', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                <p style={{ color: 'var(--text-main)', fontSize: '0.8rem', lineHeight: 1.5, margin: 0 }}>
+                  The hybrid approach did not improve overall test accuracy, but it is retained as a supporting analysis and validation layer.
+                </p>
+              </div>
+            )}
           </div>
 
           <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
             Neural Network Layer Specifications
           </h3>
-          <table className="pro-table">
+          <table className="pro-table" style={{ marginBottom: selectedLayer ? '1rem' : '0' }}>
             <thead>
               <tr>
                 <th>Layer Block</th>
@@ -1036,19 +1493,28 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              <tr>
+              <tr 
+                onClick={() => setSelectedLayer('input')}
+                style={{ cursor: 'pointer', background: selectedLayer === 'input' ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}
+              >
                 <td>Input Layer</td>
                 <td>ImageNet Preprocessing</td>
                 <td>(B, 3, 224, 224)</td>
                 <td>Standardizes RGB resolution & normalizes pixels</td>
               </tr>
-              <tr>
+              <tr 
+                onClick={() => setSelectedLayer('backbone')}
+                style={{ cursor: 'pointer', background: selectedLayer === 'backbone' ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}
+              >
                 <td>Base Backbone</td>
                 <td>EfficientNet-B0 Features (ImageNet Weights)</td>
                 <td>(B, 1280, 7, 7)</td>
                 <td>MBConv Blocks & Squeeze-and-Excitation</td>
               </tr>
-              <tr>
+              <tr 
+                onClick={() => setSelectedLayer('head')}
+                style={{ cursor: 'pointer', background: selectedLayer === 'head' ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}
+              >
                 <td>Classifier Head</td>
                 <td>Dropout(0.3) + Linear(1280, 4)</td>
                 <td>(B, 4)</td>
@@ -1056,6 +1522,21 @@ function App() {
               </tr>
             </tbody>
           </table>
+          
+          {selectedLayer && (
+            <div style={{ padding: '1rem', background: 'var(--bg-surface)', border: '1px solid var(--amber-primary)', borderRadius: '0.75rem', marginBottom: '1.5rem' }}>
+              <h4 style={{ color: 'var(--amber-primary)', fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                {selectedLayer === 'input' && 'Input Layer'}
+                {selectedLayer === 'backbone' && 'Base Backbone'}
+                {selectedLayer === 'head' && 'Classifier Head'}
+              </h4>
+              <p style={{ color: 'var(--text-main)', fontSize: '0.85rem', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>
+                {selectedLayer === 'input' && 'ImageNet preprocessing\n(B, 3, 224, 224)'}
+                {selectedLayer === 'backbone' && 'EfficientNet-B0 Features\nImageNet weights\n(B, 1280, 7, 7)'}
+                {selectedLayer === 'head' && 'Dropout(0.3) + Linear(1280, 4)\nOutputs four class probabilities.'}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1086,28 +1567,40 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              <tr>
+              <tr 
+                onClick={() => setSelectedRuleGrade('Grade A')}
+                style={{ cursor: 'pointer', background: selectedRuleGrade === 'Grade A' ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}
+              >
                 <td style={{ fontWeight: 800, color: 'var(--emerald-primary)' }}>Grade A</td>
                 <td>Ripe / Fresh 🥭</td>
                 <td>100% Market Price</td>
                 <td>3 to 5 Days</td>
                 <td>Front counter display. Ideal for immediate sale. Store at 15°C–18°C.</td>
               </tr>
-              <tr>
+              <tr 
+                onClick={() => setSelectedRuleGrade('Grade B')}
+                style={{ cursor: 'pointer', background: selectedRuleGrade === 'Grade B' ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}
+              >
                 <td style={{ fontWeight: 800, color: 'var(--amber-primary)' }}>Grade B</td>
                 <td>Unripe / Green 🍏</td>
                 <td>90% Base Price</td>
                 <td>7 to 10 Days</td>
                 <td>Store at room temp (22°C–25°C) to ripen. Re-grade in 3 days.</td>
               </tr>
-              <tr>
+              <tr 
+                onClick={() => setSelectedRuleGrade('Grade C')}
+                style={{ cursor: 'pointer', background: selectedRuleGrade === 'Grade C' ? 'rgba(243, 102, 102, 0.1)' : 'transparent' }}
+              >
                 <td style={{ fontWeight: 800, color: 'var(--rose-primary)' }}>Grade C</td>
                 <td>Overripe / Damaged 🍂</td>
                 <td>50% Discount</td>
                 <td>1 Day</td>
                 <td>Immediate clearance discount or transfer to juicing. Isolate stock.</td>
               </tr>
-              <tr>
+              <tr 
+                onClick={() => setSelectedRuleGrade('Non-Mango')}
+                style={{ cursor: 'pointer', background: selectedRuleGrade === 'Non-Mango' ? 'rgba(243, 102, 102, 0.1)' : 'transparent' }}
+              >
                 <td style={{ fontWeight: 800, color: 'var(--rose-primary)' }}>Non_Mango</td>
                 <td>Invalid Object 🚫</td>
                 <td>N/A</td>
@@ -1116,6 +1609,219 @@ function App() {
               </tr>
             </tbody>
           </table>
+
+          {/* COMPARE GRADES */}
+          <div style={{ marginTop: '2.5rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
+              Compare Grades
+            </h3>
+            <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+              <table className="pro-table" style={{ minWidth: '600px', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Grade A</th>
+                    <th>Grade B</th>
+                    <th>Grade C</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>Price</td>
+                    <td style={{ fontWeight: 700 }}>100% (LKR {simulatorBasePrice})</td>
+                    <td style={{ fontWeight: 700 }}>90% (LKR {Math.round(simulatorBasePrice * 0.9)})</td>
+                    <td style={{ fontWeight: 700 }}>50% (LKR {Math.round(simulatorBasePrice * 0.5)})</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>Shelf Life</td>
+                    <td>3–5 days</td>
+                    <td>7–10 days</td>
+                    <td>1 day</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>Storage</td>
+                    <td>15–18°C</td>
+                    <td>22–25°C</td>
+                    <td>-</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>Strategy</td>
+                    <td>Immediate sale</td>
+                    <td>Re-grade</td>
+                    <td>Clearance</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '2rem 0' }} />
+
+          {/* WHAT-IF SCENARIO / SIMULATOR */}
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--amber-primary)' }}>
+            Try a Scenario
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+            <span style={{ color: 'var(--amber-primary)' }}>Interactive Rule Simulation — demonstrates the existing production rules and does not modify them.</span>
+          </p>
+
+          <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>Base Market Price (LKR):</label>
+              <input
+                type="number"
+                value={simulatorBasePrice}
+                onChange={(e) => setSimulatorBasePrice(Number(e.target.value) || 0)}
+                style={{ background: 'var(--bg-card-inner)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.5rem 1rem', borderRadius: '0.5rem', width: '120px', fontSize: '1rem', fontWeight: 700 }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedRuleGrade('Grade A')}
+                style={{ padding: '0.75rem 1.25rem', borderRadius: '0.5rem', background: selectedRuleGrade === 'Grade A' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card-inner)', border: selectedRuleGrade === 'Grade A' ? '2px solid var(--emerald-primary)' : '1px solid var(--border-subtle)', color: selectedRuleGrade === 'Grade A' ? 'var(--emerald-primary)' : 'var(--text-main)', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s ease' }}
+              >
+                Grade A
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRuleGrade('Grade B')}
+                style={{ padding: '0.75rem 1.25rem', borderRadius: '0.5rem', background: selectedRuleGrade === 'Grade B' ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card-inner)', border: selectedRuleGrade === 'Grade B' ? '2px solid var(--amber-primary)' : '1px solid var(--border-subtle)', color: selectedRuleGrade === 'Grade B' ? 'var(--amber-primary)' : 'var(--text-main)', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s ease' }}
+              >
+                Grade B
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRuleGrade('Grade C')}
+                style={{ padding: '0.75rem 1.25rem', borderRadius: '0.5rem', background: selectedRuleGrade === 'Grade C' ? 'rgba(243, 102, 102, 0.15)' : 'var(--bg-card-inner)', border: selectedRuleGrade === 'Grade C' ? '2px solid var(--rose-primary)' : '1px solid var(--border-subtle)', color: selectedRuleGrade === 'Grade C' ? 'var(--rose-primary)' : 'var(--text-main)', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s ease' }}
+              >
+                Grade C
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRuleGrade('Non-Mango')}
+                style={{ padding: '0.75rem 1.25rem', borderRadius: '0.5rem', background: selectedRuleGrade === 'Non-Mango' ? 'rgba(243, 102, 102, 0.15)' : 'var(--bg-card-inner)', border: selectedRuleGrade === 'Non-Mango' ? '2px solid var(--rose-primary)' : '1px solid var(--border-subtle)', color: selectedRuleGrade === 'Non-Mango' ? 'var(--rose-primary)' : 'var(--text-main)', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s ease' }}
+              >
+                Non-Mango
+              </button>
+            </div>
+
+            {selectedRuleGrade && (
+              <div style={{ marginTop: '2rem', animation: 'fadeIn 0.3s ease-in-out' }}>
+                <h4 style={{ color: 'var(--amber-primary)', fontSize: '1rem', fontWeight: 800, marginBottom: '1rem' }}>What happens?</h4>
+
+                {/* Decision Flow Visualizer */}
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '0.5rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                    The neural network predicts the class. The rule-based decision engine converts the prediction into practical recommendations.
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem', fontWeight: 600, color: '#38bdf8' }}>
+                    <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '0.25rem' }}>AI Prediction</span>
+                    <span>→</span>
+                    <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(56, 189, 248, 0.2)', borderRadius: '0.25rem', color: '#fff' }}>Grade {selectedRuleGrade.replace('Grade ', '')}</span>
+                    <span>→</span>
+                    <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '0.25rem' }}>Rule Matching</span>
+                    <span>→</span>
+                    <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '0.25rem' }}>Price</span>
+                    <span>→</span>
+                    <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '0.25rem' }}>Shelf Life</span>
+                    <span>→</span>
+                    <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '0.25rem' }}>Handling</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                  
+                  {/* Price Calculation Breakdown */}
+                  <div style={{ background: 'var(--bg-card-inner)', padding: '1.25rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <h5 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '0.9rem' }}>Price Calculation Breakdown</h5>
+                    {selectedRuleGrade === 'Non-Mango' ? (
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontStyle: 'italic' }}>Calculation: Not applicable</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Base Market Price</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>LKR {simulatorBasePrice}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Rule Applied</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                            {selectedRuleGrade === 'Grade A' ? '100%' : selectedRuleGrade === 'Grade B' ? '90%' : '50%'} of Base Price
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Calculation</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                            {simulatorBasePrice} × {selectedRuleGrade === 'Grade A' ? '100%' : selectedRuleGrade === 'Grade B' ? '90%' : '50%'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.25rem' }}>
+                          <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>Recommended Price</span>
+                          <span style={{ fontWeight: 800, color: 'var(--emerald-primary)', fontSize: '1rem' }}>
+                            LKR {selectedRuleGrade === 'Grade A' ? simulatorBasePrice : selectedRuleGrade === 'Grade B' ? Math.round(simulatorBasePrice * 0.9) : Math.round(simulatorBasePrice * 0.5)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Final Recommendation Card */}
+                  <div style={{ background: 'var(--bg-card-inner)', padding: '1.25rem', borderRadius: '0.5rem', border: `2px solid ${selectedRuleGrade === 'Grade A' ? 'var(--emerald-primary)' : selectedRuleGrade === 'Grade B' ? 'var(--amber-primary)' : 'var(--rose-primary)'}` }}>
+                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: selectedRuleGrade === 'Grade A' ? 'var(--emerald-primary)' : selectedRuleGrade === 'Grade B' ? 'var(--amber-primary)' : 'var(--rose-primary)' }}>
+                      Recommendation
+                    </h4>
+                    
+                    {selectedRuleGrade === 'Non-Mango' ? (
+                      <>
+                        <div style={{ color: 'var(--rose-primary)', fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.5rem' }}>Non-Mango — Invalid Object</div>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Not a mango — commercial recommendation is not applicable.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
+                          <div><strong style={{ color: 'var(--text-secondary)' }}>Price:</strong> <span style={{ color: 'var(--text-main)' }}>N/A</span></div>
+                          <div><strong style={{ color: 'var(--text-secondary)' }}>Shelf Life:</strong> <span style={{ color: 'var(--text-main)' }}>N/A</span></div>
+                          <div><strong style={{ color: 'var(--text-secondary)' }}>Handling:</strong> <span style={{ color: 'var(--text-main)' }}>Reject invalid/non-mango object</span></div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.2rem', marginBottom: '1rem' }}>
+                          {selectedRuleGrade === 'Grade A' ? 'Grade A — Ripe/Fresh' : selectedRuleGrade === 'Grade B' ? 'Grade B — Unripe/Green' : 'Grade C — Overripe/Damaged'}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
+                          <div>
+                            <strong style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '0.2rem' }}>Recommended Price:</strong>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--emerald-primary)' }}>
+                              LKR {selectedRuleGrade === 'Grade A' ? simulatorBasePrice : selectedRuleGrade === 'Grade B' ? Math.round(simulatorBasePrice * 0.9) : Math.round(simulatorBasePrice * 0.5)}
+                            </span>
+                          </div>
+                          <div>
+                            <strong style={{ color: 'var(--text-secondary)' }}>Shelf Life:</strong>{' '}
+                            <span style={{ color: 'var(--text-main)' }}>
+                              {selectedRuleGrade === 'Grade A' ? '3–5 Days' : selectedRuleGrade === 'Grade B' ? '7–10 Days' : '1 Day'}
+                            </span>
+                          </div>
+                          {selectedRuleGrade !== 'Grade C' && (
+                            <div>
+                              <strong style={{ color: 'var(--text-secondary)' }}>Storage:</strong>{' '}
+                              <span style={{ color: 'var(--text-main)' }}>
+                                {selectedRuleGrade === 'Grade A' ? '15°C–18°C' : '22°C–25°C'}
+                              </span>
+                            </div>
+                          )}
+                          <div>
+                            <strong style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '0.2rem' }}>Handling:</strong>
+                            <span style={{ color: 'var(--text-main)' }}>
+                              {selectedRuleGrade === 'Grade A' ? 'Front counter display / immediate sale' : selectedRuleGrade === 'Grade B' ? 'Store at room temperature and re-grade' : 'Immediate clearance/processing'}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -1,0 +1,9 @@
+Test ID,Condition,Expected Result,Actual Result,PASS/FAIL,Observation
+E2E-01,Clear ripe mango,Grade_A,Grade_A_Ripe,PASS,"Pred: Grade_A_Ripe, Valid: True, Conf: 89.39"
+E2E-02,Clear unripe mango,Grade_B,Grade_B_Unripe,PASS,"Pred: Grade_B_Unripe, Valid: True, Conf: 58.09"
+E2E-03,Overripe/damaged mango,Grade_C,Grade_C_Overripe,PASS,"Pred: Grade_C_Overripe, Valid: True, Conf: 69.54"
+E2E-04,Non-mango,Non_Mango,Non_Mango,PASS,"Pred: Non_Mango, Valid: False, Conf: 100.0"
+E2E-05,Poor lighting,Grade_B,Grade_B_Unripe,PASS,"Pred: Grade_B_Unripe, Valid: True, Conf: 86.12"
+E2E-06,Blurry/low-quality,Grade_A,Grade_A_Ripe,PASS,"Pred: Grade_A_Ripe, Valid: True, Conf: 94.7"
+E2E-07,Difficult background,Grade_C,Grade_C_Overripe,PASS,"Pred: Grade_C_Overripe, Valid: True, Conf: 72.58"
+E2E-08,Difficult viewing angle,Grade_A,Grade_A_Ripe,PASS,"Pred: Grade_A_Ripe, Valid: True, Conf: 90.56"
