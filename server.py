@@ -144,7 +144,7 @@ def predict_mango():
                     "success": False,
                     "error": "Unable_To_Detect",
                     "message": "Mango could not be detected. Please take another photo with the mango clearly visible."
-                }), 400
+                })
 
         # 2. Extract OpenCV HSV features on the cropped mango region
         color_features = extract_hsv_color_analysis(cropped_mango_rgb, mask_np=mango_mask_np)

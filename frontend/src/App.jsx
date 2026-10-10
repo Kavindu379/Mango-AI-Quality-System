@@ -565,6 +565,7 @@ function App() {
       .then(res => res.json())
       .then(data => {
         setLoading(false);
+        setBackendOnline(true);
         if (data.success) {
           setResult(data);
         } else {
@@ -1031,11 +1032,11 @@ function App() {
                 }`}>
                   <div>
                     <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.85 }}>Quality Classification</div>
-                    <div className="result-banner-text">{result.prediction.display_name}</div>
+                    <div className="result-banner-text">{result.is_valid_mango ? result.prediction.display_name : '—'}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '0.7rem', opacity: 0.85 }}>Confidence</div>
-                    <div style={{ fontSize: '1.45rem', fontWeight: 800 }}>{result.prediction.confidence_percentage}%</div>
+                    <div style={{ fontSize: '1.45rem', fontWeight: 800 }}>{result.is_valid_mango ? `${result.prediction.confidence_percentage}%` : 'N/A'}</div>
                   </div>
                 </div>
 
@@ -1063,15 +1064,15 @@ function App() {
                   <div className="features-grid">
                     <div className="feature-box">
                       <div className="feature-label">Ripe Yellow %</div>
-                      <div className="feature-value" style={{ color: 'var(--amber-primary)' }}>{result.computer_vision_features.yellow_percentage}%</div>
+                      <div className="feature-value" style={{ color: 'var(--amber-primary)' }}>{result.is_valid_mango ? `${result.computer_vision_features.yellow_percentage}%` : '—'}</div>
                     </div>
                     <div className="feature-box">
                       <div className="feature-label">Unripe Green %</div>
-                      <div className="feature-value" style={{ color: 'var(--emerald-primary)' }}>{result.computer_vision_features.green_percentage}%</div>
+                      <div className="feature-value" style={{ color: 'var(--emerald-primary)' }}>{result.is_valid_mango ? `${result.computer_vision_features.green_percentage}%` : '—'}</div>
                     </div>
                     <div className="feature-box">
                       <div className="feature-label">Dark Spots %</div>
-                      <div className="feature-value" style={{ color: 'var(--rose-primary)' }}>{result.computer_vision_features.dark_spots_percentage}%</div>
+                      <div className="feature-value" style={{ color: 'var(--rose-primary)' }}>{result.is_valid_mango ? `${result.computer_vision_features.dark_spots_percentage}%` : '—'}</div>
                     </div>
                   </div>
                 </div>
@@ -1118,8 +1119,8 @@ function App() {
                         Selling Price
                       </div>
                       <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--amber-primary)', marginTop: '0.2rem' }}>
-                        {currSymbol} {result.rule_engine.recommended_price}
-                        {result.rule_engine.discount_percentage > 0 && (
+                        {result.is_valid_mango ? `${currSymbol} ${result.rule_engine.recommended_price}` : '—'}
+                        {result.is_valid_mango && result.rule_engine.discount_percentage > 0 && (
                           <span style={{ fontSize: '0.7rem', color: 'var(--rose-primary)', marginLeft: '0.35rem', fontWeight: 700 }}>
                             <TrendingDown size={11} inline /> {result.rule_engine.discount_percentage}% OFF
                           </span>
@@ -1133,17 +1134,17 @@ function App() {
                         Remaining Shelf Life
                       </div>
                       <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#38bdf8', marginTop: '0.25rem' }}>
-                        {result.rule_engine.estimated_shelf_life}
+                        {result.is_valid_mango ? result.rule_engine.estimated_shelf_life : '—'}
                       </div>
                     </div>
                   </div>
 
                   <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem' }}>
                     <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--emerald-primary)', marginBottom: '0.2rem' }}>
-                      Vendor Operational Strategy ({result.rule_engine.status_category}):
+                      Vendor Operational Strategy{result.is_valid_mango ? ` (${result.rule_engine.status_category})` : ''}:
                     </div>
                     <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                      {result.rule_engine.vendor_recommendation}
+                      {result.is_valid_mango ? result.rule_engine.vendor_recommendation : 'Please upload a clear image of a mango to receive operational strategy recommendations.'}
                     </p>
                   </div>
                 </div>
