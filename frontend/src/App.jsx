@@ -1,12 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import imgA1 from '../../dataset/train/Grade_A_Ripe/alternaria_001.jpg';
-import imgA2 from '../../dataset/train/Grade_A_Ripe/alternaria_002.jpg';
-import imgB1 from '../../dataset/train/Grade_B_Unripe/healthy_001.jpg';
-import imgB2 from '../../dataset/train/Grade_B_Unripe/healthy_002.jpg';
-import imgC1 from '../../dataset/train/Grade_C_Overripe/anthracnose_014.jpg';
-import imgC2 from '../../dataset/train/Grade_C_Overripe/anthracnose_015.jpg';
-import imgN1 from '../../dataset/train/Non_Mango/non_mango_wiki_1.jpg';
-import imgN2 from '../../dataset/train/Non_Mango/non_mango_wiki_12.png';
 import { 
   Scan, 
   Cpu, 
@@ -1251,35 +1243,35 @@ function App() {
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src={imgA1} alt="Grade A" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <img src="/samples/alternaria_001.jpg" alt="Grade A" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade A (Ripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src={imgA2} alt="Grade A" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <img src="/samples/alternaria_002.jpg" alt="Grade A" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade A (Ripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src={imgB1} alt="Grade B" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <img src="/samples/healthy_001.jpg" alt="Grade B" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade B (Unripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src={imgB2} alt="Grade B" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <img src="/samples/healthy_002.jpg" alt="Grade B" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade B (Unripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src={imgC1} alt="Grade C" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <img src="/samples/anthracnose_014.jpg" alt="Grade C" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade C (Overripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src={imgC2} alt="Grade C" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <img src="/samples/anthracnose_015.jpg" alt="Grade C" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade C (Overripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src={imgN1} alt="Non-Mango" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <img src="/samples/non_mango_wiki_1.jpg" alt="Non-Mango" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Non-Mango</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src={imgN2} alt="Non-Mango" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
+              <img src="/samples/non_mango_wiki_12.png" alt="Non-Mango" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Non-Mango</div>
             </div>
           </div>

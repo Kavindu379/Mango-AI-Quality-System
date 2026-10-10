@@ -1,2 +1,0 @@
-Image,Actual Class,Predicted Result,Likely Reason,Error Type
-dataset/val/Non_Mango/non_mango_wiki_0.jpg,Non_Mango,Grade_B_Unripe,Object visually mimics a green unripe mango in color/shape,Model/Detection error
