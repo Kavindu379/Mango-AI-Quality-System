@@ -1,23 +1,24 @@
 # 🥭 AI-Based Intelligent Mango Quality & Ripeness Assessment System
 
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![React](https://img.shields.io/badge/React-18.x-61dafb?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
+[![React](https://img.shields.io/badge/React-19.x-61dafb?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Flask](https://img.shields.io/badge/Flask-API%20Backend-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-Computer%20Vision-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)](https://opencv.org/)
 
-An end-to-end, multi-modal **Artificial Intelligence System** designed for local market vendors and agricultural supply chains to automate mango ripeness classification, surface defect detection, remaining shelf-life estimation, and fair market price valuation.
+An end-to-end, multimodal **Artificial Intelligence System** designed to assess mango ripeness and quality using deep learning and computer vision. The system combines mango detection, four-class image classification, HSV colour analysis, hybrid decision-making, and rule-based recommendations to support quality assessment and post-harvest handling decisions.
 
 ---
 
 ## 🌟 Key Features
 
-* 🧠 **Deep Learning CNN**: EfficientNet-B0 Transfer Learning Architecture (`MangoEfficientNetB0`) trained on custom mobile smartphone photos with Data Augmentation (rotations, flips, color jitter).
-* 🏷️ **Directory-Based Supervised Data Labeling**: Custom real-world dataset collection categorized into explicit ground-truth target folders (`Grade_A_Ripe` $\rightarrow$ Class 0, `Grade_B_Unripe` $\rightarrow$ Class 1, `Grade_C_Overripe` $\rightarrow$ Class 2, `Non_Mango` $\rightarrow$ Class 3).
-* 🔬 **Computer Vision Feature Extraction**: OpenCV color space transformation (RGB to HSV) calculating real-time ratios for Ripe Yellow %, Unripe Green %, and Dark Decay Spots %.
-* 🛡️ **Rule-Based Expert System**: Knowledge-based inference engine processing quality predictions into explainable vendor recommendations, price discounts, and shelf-life predictions.
-* 📱 **Mobile-First Responsive React UI**: Sleek glassmorphism single-page app featuring dark/light themes, live camera scanning, and an interactive ripeness spectrum indicator bar.
-* 📷 **Native Smartphone Camera Integration**: Web-native camera snap support for mobile smartphones over local Wi-Fi (`capture="environment"`).
-* ☁️ **Google Colab Cloud GPU Training**: Pre-configured 1-click cloud notebook (`Mango_Quality_CNN_Training.ipynb`) for training custom datasets on free NVIDIA T4 GPUs.
+- 🧠 **Deep Learning Classification:** EfficientNet-B0 transfer learning for four-class mango quality classification.
+- 🏷️ **Supervised Image Classification:** Images are organized into `Grade_A_Ripe`, `Grade_B_Unripe`, `Grade_C_Overripe`, and `Non_Mango`.
+- 🎯 **Object Detection and Segmentation:** YOLOv8 models help locate mangoes and identify the relevant image region.
+- 🔬 **Computer Vision Analysis:** OpenCV HSV colour analysis extracts colour and dark-spot indicators.
+- 🔀 **Hybrid Decision Support:** CNN predictions are combined with colour and defect evidence for additional analysis.
+- 🛡️ **Rule-Based Recommendation Engine:** Classification results are mapped to suggested price adjustments, shelf-life estimates, and handling recommendations.
+- 📱 **Responsive React Interface:** Web interface for uploading images, using camera input, and viewing prediction results.
+- ☁️ **External Model Storage:** Trained model weights are available through the linked Google Drive folder.
 
 ---
 
@@ -25,136 +26,246 @@ An end-to-end, multi-modal **Artificial Intelligence System** designed for local
 
 ```mermaid
 flowchart TD
-    A[Smartphone Camera / Image Upload] --> B[React 18 Mobile-First Frontend]
-    
-    B -- HTTP POST /api/predict --> C[Python Flask REST API]
-    
-    C --> D[YOLOv8 Mango Detection<br/>and ROI Auto-Cropping]
-    
-    D --> E[EfficientNet-B0 Classification<br/>4 class probabilities]
-    D --> F[OpenCV HSV Analysis<br/>colour and defect percentages]
-    
-    E --> G[OOD Guard and Hybrid AI Fusion]
+    A[Camera or Image Upload] --> B[React Frontend]
+    B -->|HTTP POST /api/predict| C[Flask REST API]
+
+    C --> D[YOLOv8 Detection and Segmentation]
+    D --> E[EfficientNet-B0 Classification]
+    D --> F[OpenCV HSV and Defect Analysis]
+
+    E --> G[Hybrid Decision Layer]
     F --> G
-    
-    G --> H[Rule-Based Expert Engine]
-    
+
+    G --> H[Rule-Based Recommendation Engine]
+
     H --> I[Quality Grade]
-    H --> J[Shelf-Life<br/>Estimation]
-    H --> K[Price and Vendor<br/>Recommendation]
-    
-    I --> L[JSON Response to React Frontend]
+    H --> J[Shelf-Life Estimate]
+    H --> K[Price and Handling Recommendation]
+
+    I --> L[JSON API Response]
     J --> L
     K --> L
-    
-    L === M[Result Dashboard]
-    
-    classDef default fill:#ffffff,stroke:#000000,stroke-width:1px,color:#000000,font-weight:600;
+
+    L --> M[Result Dashboard]
 ```
 
 ---
 
-## 📊 Empirical Performance & Evaluation
+## 📊 Model Performance and Evaluation
 
-**Model Architecture**: 
-EfficientNet-B0 transfer learning with a 4-class classifier.
+The final classification model uses EfficientNet-B0 transfer learning with four output classes.
 
-**Final Held-Out Test Results**:
-- **Test Accuracy**: 91.43%
-- **Mango-only Accuracy**: 91.18%
-- **Macro F1**: 0.8591
-- **Test Set Size**: 70 images
+### Final held-out test results
 
-**Classes**:
-- Grade A — Ripe
-- Grade B — Unripe
-- Grade C — Overripe
-- Non-Mango
+| Evaluation Metric | Result |
+|---|---:|
+| Overall test accuracy | **91.43%** |
+| Mango-only accuracy | **91.18%** |
+| Macro F1-score | **0.8591** |
+| Final test set size | **70 images** |
 
-**Hybrid AI Analysis**: 
-The hybrid ripeness layer combines CNN predictions with HSV colour and defect evidence. On the untouched test set, it produced the same overall accuracy as the pure CNN model. Therefore, it is used as a supporting interpretability/safety layer rather than being claimed as an accuracy-improvement technique.
+### Classification categories
 
-**System Limitations**: 
-The production pipeline depends on YOLO mango detection/cropping. Difficult images such as extreme angles, blur, or images where the detector cannot confidently locate the mango may result in `Unable_To_Detect`.
+| Class | Description |
+|---|---|
+| Grade A | Ripe mango |
+| Grade B | Unripe mango |
+| Grade C | Overripe or damaged mango |
+| Non-Mango | Image classified as not belonging to a mango class |
+
+### Hybrid AI evaluation
+
+The hybrid layer combines CNN predictions with HSV colour and defect indicators. On the untouched 70-image test set, the hybrid approach achieved the same overall accuracy as the pure CNN model.
+
+Therefore, the hybrid layer is presented as a supporting analysis and decision-support component, **not as a proven improvement in classification accuracy**.
+
+### Testing summary
+
+- Functional API tests: **7 of 8 passed (87.5%)**.
+- End-to-end test scenarios: **8 of 8 passed**.
+- An additional edge-case test identified a non-mango image incorrectly classified as an unripe mango.
+- Results demonstrate that the system works across the tested examples, but do not guarantee the same performance on all real-world images.
+
+### Known limitations
+
+- The final test set contains only 70 images.
+- Lighting, blur, unusual viewing angles, and difficult backgrounds can affect predictions.
+- YOLO detection or segmentation may fail to locate a mango in some images.
+- HSV thresholds and recommendation rules rely on predefined assumptions.
+- Shelf-life and price recommendations are estimates, not laboratory measurements or live market prices.
+
+---
+
+## 📦 Dataset and Trained Model Resources
+
+The trained model weights are stored externally to keep this GitHub repository lightweight.
+
+### 🔗 Google Drive
+
+**[📁 Access Mango AI Quality System Resources](https://drive.google.com/drive/folders/1QDzMwAF3R9lLsTYwXT2fPTC7qQjP7FN6?usp=sharing)**
+
+The shared folder includes these model files:
+
+- `mango_model.pth` — EfficientNet-B0 mango classification weights.
+- `best.pt` — YOLOv8 object-detection weights.
+- `best_seg.pt` — YOLOv8 segmentation weights.
+
+Download the required files and place them in the project root directory before starting the backend.
+
+The backend uses `mango_model.pth` for classification and prefers `best_seg.pt` for detection/segmentation when available, with `best.pt` as a fallback detection model.
+
+**Dataset:** The dataset is maintained separately from GitHub. Check the Google Drive folder for a dataset archive or training resources if they have been uploaded.
+
+> **Note:** Access depends on the Google Drive sharing settings. The owner must permit you to view and download the files. Do not upload large model weights or private dataset files to GitHub without considering repository size and data permissions.
 
 ---
 
 ## 📁 Repository Structure
 
-```
+```text
 Mango-AI-Quality-System/
-├── README.md                           # Project GitHub Documentation
-├── server.py                           # Unified Python Flask REST API Server (Port 5000)
-├── model.py                            # PyTorch MangoCNN Architecture
-├── preprocess.py                       # OpenCV HSV Color Space Feature Extraction
-├── hybrid_ripeness.py                  # Hybrid AI fusion layer logic
-├── rule_engine.py                      # Rule-Based Expert Pricing Engine
-├── train.py                            # PyTorch Model Training & Evaluation Script
-├── download_real_mango_dataset.py      # Real Photographic Dataset Downloader
-├── Mango_Quality_CNN_Training.ipynb    # Google Colab GPU Training Notebook
-├── requirements.txt                    # Python Dependencies
-├── testing/                            # Automated Tests & Reports
-├── test_images/                        # Sample Demo Test Images
-└── frontend/                           # React + Vite Web Application
+├── README.md
+├── server.py
+├── model.py
+├── preprocess.py
+├── hybrid_ripeness.py
+├── rule_engine.py
+├── train.py
+├── download_real_mango_dataset.py
+├── requirements.txt
+├── testing/
+└── frontend/
+    ├── public/
+    │   └── samples/
     ├── src/
-    │   ├── App.jsx                     # Main React Component
-    │   └── index.css                   # Glassmorphism Design System & Theme Engine
+    │   ├── App.jsx
+    │   └── index.css
     └── package.json
 ```
 
----
+This is a high-level overview. The exact files and folders may change as the project develops. Trained model weights and the full dataset are not included in the GitHub repository.
 
-> **Note on Model Weights**: Trained binary model weights (`.pth`, `.pt`, `.onnx`) are excluded from this GitHub repository via `.gitignore` due to large file sizes and repository management best practices. They must be downloaded or trained separately before running the system.
+---
 
 ## 🚀 Quick Start Guide
 
-### 1. Clone the Repository
+### Prerequisites
+
+Install the following:
+
+- Python and pip
+- Node.js and npm
+- Git
+- The required trained model weights from Google Drive
+
+### 1. Clone the repository
+
 ```bash
 git clone https://github.com/Kavindu379/Mango-AI-Quality-System.git
 cd Mango-AI-Quality-System
 ```
 
-### 2. Install Python Dependencies
+### 2. Install Python dependencies
+
+From the project root directory:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Build the Frontend
+Using a virtual environment is recommended.
+
+### 3. Download the model weights
+
+Open the [Google Drive resources folder](https://drive.google.com/drive/folders/1QDzMwAF3R9lLsTYwXT2fPTC7qQjP7FN6?usp=sharing).
+
+Download the required model files and place them in the project root directory. At minimum, the application needs the classification weights and an available compatible YOLO detection model.
+
+```text
+Mango-AI-Quality-System/
+├── mango_model.pth
+├── best_seg.pt
+├── best.pt
+└── server.py
+```
+
+Use the files that are actually available in the shared folder. The required weights must match the model architecture expected by the code.
+
+### 4. Install frontend dependencies
+
 ```bash
 cd frontend
 npm install
-npm run build
-cd ..
 ```
 
-### 4. Provide Trained Model Weights
-Place the trained binary model weights (`mango_model.pth` and `best_seg.pt`) in the root directory before running the system.
+### 5. Run the application
 
-### 5. Launch the Unified Web Application
+Return to the project root directory:
+
 ```bash
+cd ..
 python server.py
 ```
 
-Open **`http://localhost:5000`** on your laptop or **`http://<YOUR_LAPTOP_IP>:5000`** on your mobile phone to view your live AI Web Application!
+Open the application at:
 
-### 6. Running Automated Tests
-To run the evaluation tests and update the test reports, run:
+`http://localhost:5000`
+
+To access it from another device on the same local network, use your computer's local IP address if the Flask server is configured to accept network connections.
+
+### 6. Run tests
+
+If the testing script is present in your checkout, run:
+
 ```bash
 python testing/run_tests.py
 ```
-This script will test API endpoints and generate CSV reports in the `testing/` folder.
+
+Review the generated results and compare them with the testing documentation. The final reported model evaluation used a separate 70-image test set.
 
 ---
 
-## 👥 Project Team & Contributors
+## 🧪 AI Techniques Used
 
-| Member | Email | Role |
-| :--- | :--- | :--- |
-| **Kavindu Kavishka** | [rhkkskavishka@gmail.com](mailto:rhkkskavishka@gmail.com) | Lead Developer & Deep Learning Architect |
-| **Oneli Fernando** | [onelifernando2918@gmail.com](mailto:onelifernando2918@gmail.com) | Dataset Engineering & Preprocessing |
-| **Anjalee Vidurusinghe** | [anjaleevidurusinghe@gmail.com](mailto:anjaleevidurusinghe@gmail.com) | Frontend UI/UX & Mobile Web Application |
-| **Umasha Wijewickrama** | [umshsara2019@gmail.com](mailto:umshsara2019@gmail.com) | System Documentation & Quality Assurance |
+| Technique | Purpose |
+|---|---|
+| Convolutional Neural Network (CNN) | Learns visual features for mango quality classification |
+| Transfer Learning | Uses EfficientNet-B0 pretrained features as the classification backbone |
+| YOLOv8 | Detects or segments mango regions in images |
+| HSV Colour Analysis | Extracts colour-related indicators |
+| Hybrid Decision Layer | Combines classification and image-analysis evidence |
+| Rule-Based Expert System | Converts predicted grades into handling and price recommendations |
+
+These techniques serve different roles. The neural network learns visual patterns from data, computer vision extracts additional image information, and the rule engine applies predefined recommendations.
 
 ---
 
+## 👥 Project Team and Contributors
 
+| Member | Role |
+|---|---|
+| **Kavindu Kavishka** | Lead Developer, AI Model Integration, and System Architecture |
+| **O. Fernando** | Dataset Preparation and Preprocessing |
+| **HU Wijewickrama** | System Validation and Quality Assurance |
+| **ARK Vidurusinghe** | Frontend UI/UX and Web Application |
+
+---
+
+## 🔮 Future Improvements
+
+- Expand the dataset with more mango varieties, lighting conditions, and viewing angles.
+- Evaluate the system on a larger independent test set.
+- Improve mango detection for difficult images.
+- Validate shelf-life estimates against real storage experiments.
+- Use current local market data to validate pricing recommendations.
+- Improve explainability and confidence reporting for uncertain predictions.
+
+---
+
+## 📄 Project Information
+
+**Project:** AI-Based Intelligent Mango Quality & Ripeness Assessment System   
+**Repository:** [GitHub — Mango-AI-Quality-System](https://github.com/Kavindu379/Mango-AI-Quality-System)  
+**Model Resources:** [Google Drive Folder](https://drive.google.com/drive/folders/1QDzMwAF3R9lLsTYwXT2fPTC7qQjP7FN6?usp=sharing)
+
+---
