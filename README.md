@@ -87,13 +87,13 @@ Mango-AI-Quality-System/
 ├── server.py                           # Unified Python Flask REST API Server (Port 5000)
 ├── model.py                            # PyTorch MangoCNN Architecture
 ├── preprocess.py                       # OpenCV HSV Color Space Feature Extraction
+├── hybrid_ripeness.py                  # Hybrid AI fusion layer logic
 ├── rule_engine.py                      # Rule-Based Expert Pricing Engine
 ├── train.py                            # PyTorch Model Training & Evaluation Script
 ├── download_real_mango_dataset.py      # Real Photographic Dataset Downloader
 ├── Mango_Quality_CNN_Training.ipynb    # Google Colab GPU Training Notebook
-├── best_seg.pt                         # YOLOv8 Segmentation Weights (Excluded from git)
-├── mango_model.pth                     # Trained PyTorch Model Weights Tensor (Excluded from git)
 ├── requirements.txt                    # Python Dependencies
+├── testing/                            # Automated Tests & Reports
 ├── test_images/                        # Sample Demo Test Images
 └── frontend/                           # React + Vite Web Application
     ├── src/
@@ -136,6 +136,13 @@ python server.py
 ```
 
 Open **`http://localhost:5000`** on your laptop or **`http://<YOUR_LAPTOP_IP>:5000`** on your mobile phone to view your live AI Web Application!
+
+### 6. Running Automated Tests
+To run the evaluation tests and update the test reports, run:
+```bash
+python testing/run_tests.py
+```
+This script will test API endpoints and generate CSV reports in the `testing/` folder.
 
 ---
 

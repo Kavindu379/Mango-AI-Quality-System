@@ -6,13 +6,13 @@ __pycache__/
 venv/
 ENV/
 
-# Datasets & Temp Cached Images
+# Datasets & Archives
 dataset/
+Mango-Roboflow-Dataset/
+dataset_cropped/
 *.zip
-*.png
-!test_images/*.png
 
-# Machine Learning Models (Do not push large binaries to GitHub!)
+# Machine Learning Models
 *.pth
 *.pt
 *.onnx
@@ -22,12 +22,26 @@ frontend/node_modules/
 frontend/dist/
 .DS_Store
 
-# IDE
+# IDE / OS
 .vscode/
 .idea/
 
-Mango-Roboflow-Dataset/
-dataset_cropped/
+# Testing & Evidence (Local only)
+testing/
+test_images/
+*_results.csv
+hybrid_experiment_results.csv
+
+# Obsolete / Temporary Scripts (Local only)
+app.py
+download_objects*.py
+fix_colab_paths*.py
+download_non_mango_samples.py
+
+# Logs and Caches
 validation_features_cache.json
-temp_colab_crop.jpg
-temp_prod_crop.jpg
+temp_*.jpg
+*.log
+*.png
+!frontend/public/samples/*.png
+!frontend/src/assets/*.png

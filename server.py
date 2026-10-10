@@ -242,7 +242,13 @@ def get_sample_image(filename):
     return send_from_directory(TEST_IMAGES_DIR, filename)
 
 if __name__ == '__main__':
-    get_or_load_models()
+    y_m, p_m = get_or_load_models()
+    if y_m is None or p_m is None:
+        print("[FATAL ERROR] Required model weights are missing or invalid!")
+        print("Please ensure 'mango_model.pth' and YOLOv8 weights (e.g. 'best_seg.pt' or 'best.pt') are present.")
+        import sys
+        sys.exit(1)
+
     port = int(os.environ.get('PORT', 5000))
     print(f"[INFO] Starting Flask AI Backend Server on http://localhost:{port}")
     app.run(host='0.0.0.0', port=port, debug=False)
