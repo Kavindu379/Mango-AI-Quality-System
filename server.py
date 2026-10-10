@@ -19,7 +19,8 @@ CORS(app)
 
 PYTORCH_MODEL_PATH = 'mango_model.pth'
 YOLO_MODEL_PATH = 'best.pt'
-TEST_IMAGES_DIR = 'test_images'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEST_IMAGES_DIR = os.path.join(BASE_DIR, 'frontend', 'public', 'samples')
 
 pytorch_model = None
 yolo_model = None
@@ -65,10 +66,13 @@ def health_check():
 
 @app.route('/api/samples', methods=['GET'])
 def list_sample_images():
+    # Return exactly four intended valid sample files from the dataset
+    target_files = ['healthy_001.jpg', 'healthy_002.jpg', 'alternaria_001.jpg', 'non_mango_wiki_1.jpg']
     samples = []
     if os.path.exists(TEST_IMAGES_DIR):
-        for fname in sorted(os.listdir(TEST_IMAGES_DIR)):
-            if fname.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        for fname in target_files:
+            file_path = os.path.join(TEST_IMAGES_DIR, fname)
+            if os.path.exists(file_path):
                 label = fname.replace('.jpg', '').replace('.jpeg', '').replace('.png', '').replace('_', ' ').title()
                 samples.append({
                     "filename": fname,

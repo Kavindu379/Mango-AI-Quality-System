@@ -648,14 +648,17 @@ function App() {
 
   const getSampleDisplayInfo = (filename, index) => {
     const fn = filename.toLowerCase();
-    if (fn.includes('unripe') || fn.includes('green')) {
+    if (fn.includes('unripe') || fn.includes('green') || fn === 'healthy_002.jpg') {
       return { icon: '🍏', title: 'Grade B (Unripe)' };
     }
-    if (fn.includes('overripe') || fn.includes('damaged') || fn.includes('rot')) {
+    if (fn.includes('overripe') || fn.includes('damaged') || fn.includes('rot') || fn === 'alternaria_001.jpg') {
       return { icon: '🍂', title: 'Grade C (Overripe)' };
     }
-    if (fn.includes('ripe') || fn.includes('grade_a')) {
+    if (fn.includes('ripe') || fn.includes('grade_a') || fn === 'healthy_001.jpg') {
       return { icon: '🥭', title: 'Grade A (Ripe)' };
+    }
+    if (fn.includes('non_mango')) {
+      return { icon: '🚫', title: 'Non-Mango' };
     }
     // Fallback if the file is just named 1.jpeg, 2.jpeg, etc.
     return { icon: '🖼️', title: filename };
@@ -664,10 +667,10 @@ function App() {
   const currSymbol = CURRENCIES[currency]?.symbol || 'Rs.';
 
   const fallbackSamples = [
-    { filename: '1.jpeg' },
-    { filename: '2.jpeg' },
-    { filename: '3.jpeg' },
-    { filename: '4.jpg' }
+    { filename: 'healthy_001.jpg' },
+    { filename: 'healthy_002.jpg' },
+    { filename: 'alternaria_001.jpg' },
+    { filename: 'non_mango_wiki_1.jpg' }
   ];
   const activeSamples = sampleList.length > 0 ? sampleList : fallbackSamples;
   const currentExplorerSample = activeSamples[explorerSelectedIndex] || activeSamples[0];
@@ -948,15 +951,19 @@ function App() {
                   })
                 ) : (
                   <>
-                    <button className={`preset-pill ${sampleName === 'sample_ripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_ripe_mango.jpg')}>
-                      <span>🥭</span><span>Grade A (Ripe)</span>
-                    </button>
-                    <button className={`preset-pill ${sampleName === 'sample_unripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_unripe_mango.jpg')}>
-                      <span>🍏</span><span>Grade B (Unripe)</span>
-                    </button>
-                    <button className={`preset-pill ${sampleName === 'sample_overripe_mango.jpg' ? 'active' : ''}`} onClick={() => handleSelectSample('sample_overripe_mango.jpg')}>
-                      <span>🍂</span><span>Grade C (Overripe)</span>
-                    </button>
+                    {fallbackSamples.map((item, idx) => {
+                      const info = getSampleDisplayInfo(item.filename, idx);
+                      return (
+                        <button
+                          key={idx}
+                          className={`preset-pill ${sampleName === item.filename ? 'active' : ''}`}
+                          onClick={() => handleSelectSample(item.filename)}
+                        >
+                          <span style={{ fontSize: '1.2rem' }}>{info.icon}</span>
+                          <span>{info.title}</span>
+                        </button>
+                      );
+                    })}
                   </>
                 )}
               </div>
@@ -1247,15 +1254,7 @@ function App() {
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade A (Ripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src="/samples/alternaria_002.jpg" alt="Grade A" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade A (Ripe)</div>
-            </div>
-            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
               <img src="/samples/healthy_001.jpg" alt="Grade B" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade B (Unripe)</div>
-            </div>
-            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src="/samples/healthy_002.jpg" alt="Grade B" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade B (Unripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
@@ -1263,15 +1262,7 @@ function App() {
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade C (Overripe)</div>
             </div>
             <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src="/samples/anthracnose_015.jpg" alt="Grade C" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Grade C (Overripe)</div>
-            </div>
-            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
               <img src="/samples/non_mango_wiki_1.jpg" alt="Non-Mango" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Non-Mango</div>
-            </div>
-            <div style={{ background: 'var(--bg-surface)', padding: '0.5rem', borderRadius: '0.75rem', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <img src="/samples/non_mango_wiki_12.png" alt="Non-Mango" style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>Non-Mango</div>
             </div>
           </div>
