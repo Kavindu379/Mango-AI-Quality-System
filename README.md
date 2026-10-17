@@ -196,6 +196,7 @@ Use the files that are actually available in the shared folder. The required wei
 ```bash
 cd frontend
 npm install
+npm run build
 ```
 
 ### 5. Run the application
