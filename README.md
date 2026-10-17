@@ -133,7 +133,6 @@ Mango-AI-Quality-System/
 ├── train.py
 ├── download_real_mango_dataset.py
 ├── requirements.txt
-├── testing/
 └── frontend/
     ├── public/
     │   └── samples/
@@ -196,6 +195,7 @@ Use the files that are actually available in the shared folder. The required wei
 ```bash
 cd frontend
 npm install
+npm run build
 ```
 
 ### 5. Run the application
@@ -213,15 +213,17 @@ Open the application at:
 
 To access it from another device on the same local network, use your computer's local IP address if the Flask server is configured to accept network connections.
 
-### 6. Run tests
+### 6. Testing and evaluation
 
-If the testing script is present in your checkout, run:
+The final reported model evaluation used a separate 70-image test set. The automated testing script and detailed test artifacts are not currently included in this GitHub repository, so `python testing/run_tests.py` cannot be run from a fresh clone unless those files are added separately.
 
-```bash
-python testing/run_tests.py
-```
+Reported project results:
 
-Review the generated results and compare them with the testing documentation. The final reported model evaluation used a separate 70-image test set.
+- Overall test accuracy: **91.43%**
+- Mango-only accuracy: **91.18%**
+- Macro F1-score: **0.8591**
+
+These are reported evaluation results; they are not automatically reproduced by starting the application.
 
 ---
 
